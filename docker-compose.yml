@@ -1,0 +1,46 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: taxbyte-postgres
+    environment:
+      POSTGRES_USER: taxbyte
+      POSTGRES_PASSWORD: taxbyte
+      POSTGRES_DB: taxbyte
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U taxbyte"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - taxbyte-network
+
+  redis:
+    image: redis:latest
+    container_name: taxbyte-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - taxbyte-network
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  taxbyte-network:
+    driver: bridge

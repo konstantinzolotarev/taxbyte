@@ -1,0 +1,64 @@
+[package]
+name = "taxbyte"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+# Web framework
+actix-web = "4.12.1"
+actix-governor = "0.6.0"
+actix-web-lab = "0.22.0"
+
+# Security
+argon2 = "0.5.3"
+uuid = { version = "1.11.0", features = ["v4", "serde"] }
+rand = "0.8.5"
+sha2 = "0.10.8"
+hex = "0.4.3"
+
+# Database
+sqlx = { version = "0.8.2", features = ["runtime-tokio", "tls-rustls", "postgres", "uuid", "chrono", "migrate"] }
+
+# Redis
+redis = { version = "0.27.5", features = ["tokio-comp", "connection-manager"] }
+
+# Configuration
+config = "0.14.1"
+dotenvy = "0.15.7"
+
+# Metrics
+prometheus = { version = "0.13.4", features = ["process"] }
+
+# Async runtime
+tokio = { version = "1.49.0", features = ["full"] }
+tokio-util = "0.7.18"
+futures-util = "0.3"
+
+# Error handling
+anyhow = "1.0.100"
+thiserror = "2.0.18"
+
+# Serialization
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.149"
+
+# Validation
+validator = { version = "0.20.0", features = ["derive"] }
+
+# Logging & Tracing
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.22", features = ["env-filter"] }
+
+# Date & Time
+chrono = { version = "0.4.43", features = ["serde"] }
+
+# Traits
+async-trait = "0.1.89"
+
+# Utilities
+lazy_static = "1.5.0"
+
+[dev-dependencies]
+testcontainers = "0.23.1"
+testcontainers-modules = { version = "0.11.3", features = ["postgres"] }
+toml = "0.8.19"

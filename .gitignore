@@ -1,0 +1,14 @@
+target/
+/out/
+ai/
+.cargo/advisory-db/
+.vscode/
+.idea/
+.zed/
+.DS_Store
+*.profraw
+tarpaulin-report.html
+
+# Local configuration
+config/local.toml
+.env

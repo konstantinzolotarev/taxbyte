@@ -1,0 +1,36 @@
+# Default TaxByte Configuration
+# This file contains the default configuration values for the application.
+# Override these values by creating a config/local.toml file or by setting
+# environment variables with the TAXBYTE_ prefix.
+
+[server]
+# Server host address
+host = "127.0.0.1"
+# Server port
+port = 8080
+
+[database]
+# PostgreSQL database URL
+# Format: postgres://username:password@host:port/database
+url = "postgres://postgres:postgres@localhost:5432/taxbyte"
+# Maximum number of database connections in the pool
+max_connections = 10
+
+[redis]
+# Redis connection URL
+# Format: redis://[username:password@]host:port[/database]
+url = "redis://localhost:6379"
+
+[security]
+# Minimum password length requirement
+password_min_length = 12
+# Session TTL in seconds (default: 1 hour)
+session_ttl_seconds = 3600
+# "Remember me" session TTL in seconds (default: 30 days)
+remember_me_ttl_seconds = 2592000
+
+[rate_limit]
+# Maximum login attempts before rate limiting kicks in
+login_max_attempts = 5
+# Time window for login rate limiting in seconds (default: 5 minutes)
+login_window_seconds = 300
