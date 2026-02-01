@@ -101,24 +101,9 @@ impl UserRepository for PostgresUserRepository {
     .bind(user.created_at)
     .bind(user.updated_at)
     .fetch_one(&self.pool)
-    .await;
+    .await?;
 
-    match result {
-      Ok(row) => Ok(row.into()),
-      Err(sqlx::Error::Database(db_err)) => {
-        // Check for unique constraint violation on email
-        if db_err.is_unique_violation() {
-          Err(AuthError::EmailAlreadyExists)
-        } else {
-          Err(AuthError::Repository(RepositoryError::DatabaseError(
-            db_err.to_string(),
-          )))
-        }
-      }
-      Err(e) => Err(AuthError::Repository(RepositoryError::QueryFailed(
-        e.to_string(),
-      ))),
-    }
+    Ok(result.into())
   }
 
   async fn find_by_id(&self, id: Uuid) -> Result<Option<User>, AuthError> {
@@ -386,8 +371,8 @@ mod tests {
 
     assert!(result.is_err());
     match result.unwrap_err() {
-      AuthError::EmailAlreadyExists => {}
-      _ => panic!("Expected EmailAlreadyExists error"),
+      AuthError::Repository(RepositoryError::DuplicateKey(_)) => {}
+      _ => panic!("Expected Repository(DuplicateKey) error"),
     }
   }
 

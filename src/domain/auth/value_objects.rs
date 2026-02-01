@@ -111,9 +111,7 @@ impl Password {
     let salt = SaltString::generate(&mut rand::rngs::OsRng);
     let argon2 = Argon2::default();
 
-    let hash = argon2
-      .hash_password(self.0.as_bytes(), &salt)
-      .map_err(|e| ValueObjectError::HashingFailed(e.to_string()))?;
+    let hash = argon2.hash_password(self.0.as_bytes(), &salt)?;
 
     Ok(PasswordHash(hash.to_string()))
   }
@@ -162,15 +160,14 @@ impl PasswordHash {
     let hash = hash.into();
 
     // Validate it's a proper Argon2 hash
-    Argon2PasswordHash::new(&hash).map_err(|_| ValueObjectError::InvalidPasswordHash)?;
+    Argon2PasswordHash::new(&hash)?;
 
     Ok(Self(hash))
   }
 
   /// Verifies a password against this hash
   pub fn verify(&self, password: &Password) -> Result<bool, ValueObjectError> {
-    let parsed_hash = Argon2PasswordHash::new(&self.0)
-      .map_err(|e| ValueObjectError::VerificationFailed(e.to_string()))?;
+    let parsed_hash = Argon2PasswordHash::new(&self.0)?;
 
     let argon2 = Argon2::default();
 

@@ -4,7 +4,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use super::entities::{LoginAttempt, Session, User};
-use super::errors::AuthError;
+use super::errors::{AuthError, RepositoryError};
 use super::ports::{
   LoginAttemptRepository, PasswordHasher, SessionRepository, TokenGenerator, UserRepository,
 };
@@ -74,7 +74,13 @@ impl AuthService {
     let user = User::new(email.into_inner(), password_hash.into_inner(), full_name);
 
     // Save user to repository
-    let created_user = self.user_repo.create(user).await?;
+    let created_user = match self.user_repo.create(user).await {
+      Ok(user) => user,
+      Err(AuthError::Repository(RepositoryError::DuplicateKey(_))) => {
+        return Err(AuthError::EmailAlreadyExists);
+      }
+      Err(e) => return Err(e),
+    };
 
     // Generate session token
     let session_token = SessionToken::generate().map_err(|e| {

@@ -1,0 +1,33 @@
+{% extends "layouts/base.html.tera" %}
+
+{% block title %}Register - TaxByte{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-center min-h-screen px-4 py-12">
+  <div class="w-full max-w-md">
+    <!-- Logo -->
+    <div class="text-center mb-8">
+      <h1 class="text-4xl font-bold text-primary-600 dark:text-primary-400">TaxByte</h1>
+      <p class="mt-2 text-gray-600 dark:text-gray-400">Create your account</p>
+    </div>
+
+    <!-- Register Form Card -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-8" id="form-container">
+      {% include "partials/register_form.html.tera" %}
+    </div>
+
+    <!-- Login Link -->
+    <p class="mt-6 text-center text-sm text-gray-600 dark:text-gray-400">
+      Already have an account?
+      <a href="/login" class="font-medium text-primary-600 dark:text-primary-400 hover:underline">
+        Sign in
+      </a>
+    </p>
+
+    <!-- Theme Toggle (floating) -->
+    <div class="fixed bottom-4 right-4">
+      {% include "components/theme_toggle.html.tera" %}
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,10 +1,12 @@
-use actix_web::{App, HttpServer, middleware::Logger, web};
+use actix_files as fs;
+use actix_web::{middleware::Logger, web, App, HttpServer};
 use sqlx::postgres::PgPoolOptions;
 use std::sync::Arc;
+use std::time::Duration;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use taxbyte::{
-  adapters::http::{RequestIdMiddleware, configure_auth_routes},
+  adapters::http::{configure_auth_routes, configure_web_routes, RequestIdMiddleware, TemplateEngine},
   application::auth::{
     GetCurrentUserUseCase, LoginUserUseCase, LogoutAllDevicesUseCase, LogoutUserUseCase,
     RegisterUserUseCase,
@@ -39,13 +41,43 @@ async fn main() -> std::io::Result<()> {
   let config = Config::load().expect("Failed to load configuration");
   tracing::info!("Configuration loaded successfully");
 
-  // Set up database connection pool
+  // Set up database connection pool with timeout
   tracing::info!("Connecting to database: {}", config.database.url);
-  let db_pool = PgPoolOptions::new()
-    .max_connections(config.database.max_connections)
-    .connect(&config.database.url)
-    .await
-    .expect("Failed to connect to database");
+
+  let db_pool = tokio::time::timeout(
+    Duration::from_secs(config.database.connect_timeout_seconds),
+    PgPoolOptions::new()
+      .max_connections(config.database.max_connections)
+      .acquire_timeout(Duration::from_secs(config.database.acquire_timeout_seconds))
+      .connect(&config.database.url),
+  )
+  .await
+  .map_err(|_| {
+    tracing::error!(
+      "Database connection timed out after {} seconds. Is PostgreSQL running?",
+      config.database.connect_timeout_seconds
+    );
+    std::io::Error::new(
+      std::io::ErrorKind::TimedOut,
+      format!(
+        "Database connection timed out after {} seconds",
+        config.database.connect_timeout_seconds
+      ),
+    )
+  })?
+  .map_err(|e| {
+    tracing::error!("Failed to connect to database: {}", e);
+    match e {
+      sqlx::Error::Io(_) => std::io::Error::new(
+        std::io::ErrorKind::ConnectionRefused,
+        format!(
+          "Could not connect to database. Is PostgreSQL running at {}?",
+          config.database.url
+        ),
+      ),
+      _ => std::io::Error::new(std::io::ErrorKind::Other, format!("Database error: {}", e)),
+    }
+  })?;
 
   tracing::info!("Database connection pool created");
 
@@ -57,14 +89,46 @@ async fn main() -> std::io::Result<()> {
     .expect("Failed to run database migrations");
   tracing::info!("Database migrations completed");
 
-  // Set up Redis connection
+  // Set up Redis connection with timeout
   tracing::info!("Connecting to Redis: {}", config.redis.url);
-  let redis_client =
-    redis::Client::open(config.redis.url.clone()).expect("Failed to create Redis client");
-  let redis_conn = redis_client
-    .get_connection_manager()
-    .await
-    .expect("Failed to connect to Redis");
+
+  let redis_client = redis::Client::open(config.redis.url.clone()).map_err(|e| {
+    tracing::error!("Failed to create Redis client: {}", e);
+    std::io::Error::new(
+      std::io::ErrorKind::InvalidInput,
+      format!("Invalid Redis URL: {}", e),
+    )
+  })?;
+
+  let redis_conn = tokio::time::timeout(
+    Duration::from_secs(config.redis.connect_timeout_seconds),
+    redis_client.get_connection_manager(),
+  )
+  .await
+  .map_err(|_| {
+    tracing::error!(
+      "Redis connection timed out after {} seconds. Is Redis running?",
+      config.redis.connect_timeout_seconds
+    );
+    std::io::Error::new(
+      std::io::ErrorKind::TimedOut,
+      format!(
+        "Redis connection timed out after {} seconds",
+        config.redis.connect_timeout_seconds
+      ),
+    )
+  })?
+  .map_err(|e| {
+    tracing::error!("Failed to connect to Redis: {}", e);
+    std::io::Error::new(
+      std::io::ErrorKind::ConnectionRefused,
+      format!(
+        "Could not connect to Redis. Is Redis running at {}?",
+        config.redis.url
+      ),
+    )
+  })?;
+
   tracing::info!("Redis connection established");
 
   // Initialize repositories
@@ -96,6 +160,10 @@ async fn main() -> std::io::Result<()> {
   let logout_all_use_case = Arc::new(LogoutAllDevicesUseCase::new(auth_service.clone()));
   let get_user_use_case = Arc::new(GetCurrentUserUseCase::new(auth_service.clone()));
 
+  // Initialize template engine
+  let templates = TemplateEngine::new().expect("Failed to initialize template engine");
+  tracing::info!("Template engine initialized");
+
   let server_host = config.server.host.clone();
   let server_port = config.server.port;
 
@@ -108,6 +176,16 @@ async fn main() -> std::io::Result<()> {
       .wrap(RequestIdMiddleware::new())
       // Add logging middleware
       .wrap(Logger::default())
+      // Configure web UI routes
+      .configure(|cfg| {
+        configure_web_routes(
+          cfg,
+          templates.clone(),
+          auth_service.clone(),
+          register_use_case.clone(),
+          login_use_case.clone(),
+        )
+      })
       // Configure API routes
       .service(web::scope("/api/v1/auth").configure(|cfg| {
         configure_auth_routes(
@@ -119,6 +197,8 @@ async fn main() -> std::io::Result<()> {
           get_user_use_case.clone(),
         )
       }))
+      // Static files
+      .service(fs::Files::new("/static", "./static"))
       // Health check endpoint
       .route("/health", web::get().to(health_check))
   })

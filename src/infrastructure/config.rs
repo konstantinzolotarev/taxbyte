@@ -2,6 +2,19 @@ use config::{Config as ConfigBuilder, ConfigError, Environment, File};
 use serde::Deserialize;
 use std::env;
 
+// Default timeout functions
+fn default_db_connect_timeout() -> u64 {
+  5
+}
+
+fn default_db_acquire_timeout() -> u64 {
+  3
+}
+
+fn default_redis_connect_timeout() -> u64 {
+  5
+}
+
 /// Main application configuration
 #[derive(Debug, Clone, Deserialize)]
 pub struct Config {
@@ -24,12 +37,18 @@ pub struct ServerConfig {
 pub struct DatabaseConfig {
   pub url: String,
   pub max_connections: u32,
+  #[serde(default = "default_db_connect_timeout")]
+  pub connect_timeout_seconds: u64,
+  #[serde(default = "default_db_acquire_timeout")]
+  pub acquire_timeout_seconds: u64,
 }
 
 /// Redis configuration
 #[derive(Debug, Clone, Deserialize)]
 pub struct RedisConfig {
   pub url: String,
+  #[serde(default = "default_redis_connect_timeout")]
+  pub connect_timeout_seconds: u64,
 }
 
 /// Security configuration
@@ -144,7 +163,10 @@ mod tests {
     assert_eq!(config.server.port, 8080);
     assert_eq!(config.database.url, "postgres://localhost/taxbyte");
     assert_eq!(config.database.max_connections, 5);
+    assert_eq!(config.database.connect_timeout_seconds, 5); // default
+    assert_eq!(config.database.acquire_timeout_seconds, 3); // default
     assert_eq!(config.redis.url, "redis://localhost");
+    assert_eq!(config.redis.connect_timeout_seconds, 5); // default
     assert_eq!(config.security.password_min_length, 8);
     assert_eq!(config.security.session_ttl_seconds, 3600);
     assert_eq!(config.security.remember_me_ttl_seconds, 2592000);

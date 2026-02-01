@@ -64,20 +64,14 @@ impl LoginAttemptRepository for PostgresLoginAttemptRepository {
     .bind(attempt.success)
     .bind(attempt.attempted_at)
     .fetch_one(&self.pool)
-    .await
-    .map_err(|e| {
-      tracing::error!("Failed to create login attempt: {}", e);
-      AuthError::Repository(RepositoryError::QueryFailed(e.to_string()))
-    })?;
+    .await?;
 
     // Parse IP address from database
-    let ip_address: IpAddr = row.ip_address.parse().map_err(|e| {
-      tracing::error!("Failed to parse IP address: {}", e);
-      AuthError::Repository(RepositoryError::DatabaseError(format!(
-        "Invalid IP address: {}",
-        e
-      )))
-    })?;
+    let ip_address: IpAddr = row
+      .ip_address
+      .parse()
+      .map_err(RepositoryError::from)
+      .map_err(AuthError::from)?;
 
     Ok(LoginAttempt::from_db(
       row.id,
@@ -105,11 +99,7 @@ impl LoginAttemptRepository for PostgresLoginAttemptRepository {
     )
     .bind(user_id)
     .fetch_optional(&self.pool)
-    .await
-    .map_err(|e| {
-      tracing::error!("Failed to fetch user email for user_id {}: {}", user_id, e);
-      AuthError::Repository(RepositoryError::QueryFailed(e.to_string()))
-    })?
+    .await?
     .ok_or_else(|| {
       tracing::warn!("User not found for user_id: {}", user_id);
       AuthError::Repository(RepositoryError::NotFound)
@@ -130,15 +120,7 @@ impl LoginAttemptRepository for PostgresLoginAttemptRepository {
     .bind(&user_email)
     .bind(window_seconds)
     .fetch_one(&self.pool)
-    .await
-    .map_err(|e| {
-      tracing::error!(
-        "Failed to count login failures for email {}: {}",
-        user_email,
-        e
-      );
-      AuthError::Repository(RepositoryError::QueryFailed(e.to_string()))
-    })?;
+    .await?;
 
     Ok(count_row.count.unwrap_or(0))
   }

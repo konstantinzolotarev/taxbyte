@@ -64,11 +64,7 @@ impl SessionRepository for PostgresSessionRepository {
         .bind(session.expires_at)
         .bind(session.created_at)
         .fetch_one(&self.pool)
-        .await
-        .map_err(|e| {
-            tracing::error!("Failed to create session: {}", e);
-            AuthError::Repository(RepositoryError::QueryFailed(e.to_string()))
-        })?;
+        .await?;
 
     let ip_address = row
       .ip_address
@@ -96,11 +92,7 @@ impl SessionRepository for PostgresSessionRepository {
     )
     .bind(token_hash)
     .fetch_optional(&self.pool)
-    .await
-    .map_err(|e| {
-      tracing::error!("Failed to find session by token hash: {}", e);
-      AuthError::Repository(RepositoryError::QueryFailed(e.to_string()))
-    })?;
+    .await?;
 
     match row {
       Some(row) => {
@@ -134,11 +126,7 @@ impl SessionRepository for PostgresSessionRepository {
     )
     .bind(user_id)
     .fetch_all(&self.pool)
-    .await
-    .map_err(|e| {
-      tracing::error!("Failed to find sessions by user_id: {}", e);
-      AuthError::Repository(RepositoryError::QueryFailed(e.to_string()))
-    })?;
+    .await?;
 
     let sessions = rows
       .into_iter()
@@ -174,11 +162,7 @@ impl SessionRepository for PostgresSessionRepository {
     )
     .bind(session_id)
     .execute(&self.pool)
-    .await
-    .map_err(|e| {
-      tracing::error!("Failed to update session activity: {}", e);
-      AuthError::Repository(RepositoryError::QueryFailed(e.to_string()))
-    })?;
+    .await?;
 
     if result.rows_affected() == 0 {
       tracing::warn!("Session {} not found for activity update", session_id);
@@ -198,11 +182,7 @@ impl SessionRepository for PostgresSessionRepository {
     )
     .bind(session_id)
     .execute(&self.pool)
-    .await
-    .map_err(|e| {
-      tracing::error!("Failed to delete session: {}", e);
-      AuthError::Repository(RepositoryError::QueryFailed(e.to_string()))
-    })?;
+    .await?;
 
     if result.rows_affected() == 0 {
       tracing::warn!("Session {} not found for deletion", session_id);
@@ -223,11 +203,7 @@ impl SessionRepository for PostgresSessionRepository {
     )
     .bind(user_id)
     .execute(&self.pool)
-    .await
-    .map_err(|e| {
-      tracing::error!("Failed to delete all sessions for user {}: {}", user_id, e);
-      AuthError::Repository(RepositoryError::QueryFailed(e.to_string()))
-    })?;
+    .await?;
 
     tracing::info!("Deleted all sessions for user {}", user_id);
     Ok(())

@@ -15,11 +15,17 @@ port = 8080
 url = "postgres://postgres:postgres@localhost:5432/taxbyte"
 # Maximum number of database connections in the pool
 max_connections = 10
+# Database connection timeout in seconds
+connect_timeout_seconds = 5
+# Connection pool acquisition timeout in seconds
+acquire_timeout_seconds = 3
 
 [redis]
 # Redis connection URL
 # Format: redis://[username:password@]host:port[/database]
 url = "redis://localhost:6379"
+# Redis connection timeout in seconds
+connect_timeout_seconds = 5
 
 [security]
 # Minimum password length requirement

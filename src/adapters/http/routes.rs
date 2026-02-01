@@ -1,14 +1,18 @@
-use actix_web::web;
+use actix_web::{web, HttpResponse};
 use std::sync::Arc;
 
 use crate::application::auth::{
   GetCurrentUserUseCase, LoginUserUseCase, LogoutAllDevicesUseCase, LogoutUserUseCase,
   RegisterUserUseCase,
 };
+use crate::domain::auth::services::AuthService;
 
 use super::handlers::auth::{
   get_current_user_handler, login_handler, logout_all_handler, logout_handler, register_handler,
 };
+use super::handlers::{pages, web_auth};
+use super::middleware::WebAuthMiddleware;
+use super::templates::TemplateEngine;
 
 /// Configure authentication routes
 ///
@@ -81,6 +85,45 @@ pub fn configure_auth_routes(
     .route("/logout", web::post().to(logout_handler))
     .route("/logout-all", web::post().to(logout_all_handler))
     .route("/me", web::get().to(get_current_user_handler));
+}
+
+/// Configure web UI routes
+pub fn configure_web_routes(
+  cfg: &mut web::ServiceConfig,
+  templates: TemplateEngine,
+  auth_service: Arc<AuthService>,
+  register_use_case: Arc<RegisterUserUseCase>,
+  login_use_case: Arc<LoginUserUseCase>,
+) {
+  // Add template engine to app data
+  cfg.app_data(web::Data::new(templates.clone()));
+
+  // Public routes (no authentication required)
+  cfg
+    .route("/", web::get().to(|| async {
+      HttpResponse::Found()
+        .insert_header(("Location", "/login"))
+        .finish()
+    }))
+    .route("/login", web::get().to(pages::login_page))
+    .route("/register", web::get().to(pages::register_page));
+
+  // Auth form submission routes
+  cfg.service(
+    web::scope("/auth")
+      .app_data(web::Data::new(register_use_case))
+      .app_data(web::Data::new(login_use_case))
+      .route("/login", web::post().to(web_auth::login_submit))
+      .route("/register", web::post().to(web_auth::register_submit))
+      .route("/logout", web::post().to(web_auth::logout)),
+  );
+
+  // Protected routes (require authentication)
+  cfg.service(
+    web::scope("/dashboard")
+      .wrap(WebAuthMiddleware::new(auth_service))
+      .route("", web::get().to(pages::dashboard_page)),
+  );
 }
 
 #[cfg(test)]

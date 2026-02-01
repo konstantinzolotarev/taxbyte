@@ -5,9 +5,16 @@ edition = "2024"
 
 [dependencies]
 # Web framework
-actix-web = "4.12.1"
+actix-web = { version = "4.12.1", features = ["cookies"] }
 actix-governor = "0.6.0"
 actix-web-lab = "0.22.0"
+actix-files = "0.6"
+
+# Template Engine
+tera = "1.20"
+
+# Form Parsing
+serde_urlencoded = "0.7"
 
 # Security
 argon2 = "0.5.3"

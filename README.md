@@ -398,17 +398,17 @@ Configuration is managed through a combination of:
 
 Environment variables use the `TAXBYTE_` prefix (optional, can also use plain variable names):
 
-| Environment Variable      | Config Path                        | Default Value                                       |
-| ------------------------- | ---------------------------------- | --------------------------------------------------- |
-| `SERVER_HOST`             | `server.host`                      | `127.0.0.1`                                         |
-| `SERVER_PORT`             | `server.port`                      | `8080`                                              |
-| `DATABASE_URL`            | `database.url`                     | `postgres://taxbyte:taxbyte@localhost:5432/taxbyte` |
-| `REDIS_URL`               | `redis.url`                        | `redis://localhost:6379`                            |
-| `PASSWORD_MIN_LENGTH`     | `security.password_min_length`     | `12`                                                |
-| `SESSION_TTL_SECONDS`     | `security.session_ttl_seconds`     | `3600` (1 hour)                                     |
-| `REMEMBER_ME_TTL_SECONDS` | `security.remember_me_ttl_seconds` | `2592000` (30 days)                                 |
-| `LOGIN_MAX_ATTEMPTS`      | `rate_limit.login_max_attempts`    | `5`                                                 |
-| `LOGIN_WINDOW_SECONDS`    | `rate_limit.login_window_seconds`  | `300` (5 minutes)                                   |
+| Environment Variable      | Config Path                        | Default Value                                         |
+| ------------------------- | ---------------------------------- | ----------------------------------------------------- |
+| `SERVER_HOST`             | `server.host`                      | `127.0.0.1`                                           |
+| `SERVER_PORT`             | `server.port`                      | `8080`                                                |
+| `DATABASE_URL`            | `database.url`                     | `postgres://postgres:postgres@localhost:5432/taxbyte` |
+| `REDIS_URL`               | `redis.url`                        | `redis://localhost:6379`                              |
+| `PASSWORD_MIN_LENGTH`     | `security.password_min_length`     | `12`                                                  |
+| `SESSION_TTL_SECONDS`     | `security.session_ttl_seconds`     | `3600` (1 hour)                                       |
+| `REMEMBER_ME_TTL_SECONDS` | `security.remember_me_ttl_seconds` | `2592000` (30 days)                                   |
+| `LOGIN_MAX_ATTEMPTS`      | `rate_limit.login_max_attempts`    | `5`                                                   |
+| `LOGIN_WINDOW_SECONDS`    | `rate_limit.login_window_seconds`  | `300` (5 minutes)                                     |
 
 ### Logging Configuration
 

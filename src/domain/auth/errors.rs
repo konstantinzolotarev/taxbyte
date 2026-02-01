@@ -56,6 +56,9 @@ pub enum RepositoryError {
 
   #[error("Database error: {0}")]
   DatabaseError(String),
+
+  #[error("Invalid IP address: {0}")]
+  InvalidIpAddress(#[from] std::net::AddrParseError),
 }
 
 /// Password hashing and verification errors
@@ -100,4 +103,51 @@ pub enum ValidationError {
 
   #[error("Missing required field: {field}")]
   MissingField { field: String },
+}
+
+// Automatic conversions from external error types
+
+impl From<sqlx::Error> for RepositoryError {
+    fn from(error: sqlx::Error) -> Self {
+        match error {
+            sqlx::Error::RowNotFound => RepositoryError::NotFound,
+            sqlx::Error::Database(db_err) => {
+                if db_err.is_unique_violation() {
+                    RepositoryError::DuplicateKey(db_err.message().to_string())
+                } else {
+                    RepositoryError::DatabaseError(db_err.message().to_string())
+                }
+            }
+            sqlx::Error::PoolTimedOut => {
+                RepositoryError::ConnectionFailed("Pool timed out".to_string())
+            }
+            sqlx::Error::PoolClosed => {
+                RepositoryError::ConnectionFailed("Pool closed".to_string())
+            }
+            _ => RepositoryError::QueryFailed(error.to_string()),
+        }
+    }
+}
+
+impl From<sqlx::Error> for AuthError {
+    fn from(error: sqlx::Error) -> Self {
+        AuthError::Repository(RepositoryError::from(error))
+    }
+}
+
+impl From<argon2::password_hash::Error> for ValueObjectError {
+    fn from(error: argon2::password_hash::Error) -> Self {
+        use argon2::password_hash::Error;
+        match error {
+            Error::Password => {
+                ValueObjectError::VerificationFailed("Invalid password".to_string())
+            }
+            // Hash parsing/format errors
+            Error::PhcStringField | Error::PhcStringTrailingData => {
+                ValueObjectError::InvalidPasswordHash
+            }
+            // All other errors are hashing/verification failures
+            _ => ValueObjectError::HashingFailed(error.to_string()),
+        }
+    }
 }
