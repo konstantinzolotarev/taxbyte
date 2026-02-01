@@ -9,14 +9,13 @@ pub mod update_company_profile;
 pub use add_company_member::{AddCompanyMemberCommand, AddCompanyMemberUseCase};
 pub use create_company::{CreateCompanyCommand, CreateCompanyResponse, CreateCompanyUseCase};
 pub use get_company_details::{
-    CompanyAddressData, GetCompanyDetailsCommand, GetCompanyDetailsResponse,
-    GetCompanyDetailsUseCase,
+  CompanyAddressData, GetCompanyDetailsCommand, GetCompanyDetailsResponse, GetCompanyDetailsUseCase,
 };
 pub use get_user_companies::{
-    CompanyListItem, GetUserCompaniesCommand, GetUserCompaniesResponse, GetUserCompaniesUseCase,
+  CompanyListItem, GetUserCompaniesCommand, GetUserCompaniesResponse, GetUserCompaniesUseCase,
 };
 pub use remove_company_member::{RemoveCompanyMemberCommand, RemoveCompanyMemberUseCase};
 pub use set_active_company::{SetActiveCompanyCommand, SetActiveCompanyUseCase};
 pub use update_company_profile::{
-    UpdateCompanyProfileCommand, UpdateCompanyProfileResponse, UpdateCompanyProfileUseCase,
+  UpdateCompanyProfileCommand, UpdateCompanyProfileResponse, UpdateCompanyProfileUseCase,
 };

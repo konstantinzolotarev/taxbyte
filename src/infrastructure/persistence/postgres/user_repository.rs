@@ -273,7 +273,7 @@ mod tests {
   use sqlx::postgres::PgPoolOptions;
   use testcontainers::ImageExt;
   use testcontainers_modules::postgres::Postgres;
-  use testcontainers_modules::testcontainers::{runners::AsyncRunner, ContainerAsync};
+  use testcontainers_modules::testcontainers::{ContainerAsync, runners::AsyncRunner};
 
   async fn setup_test_db() -> (PgPool, ContainerAsync<Postgres>) {
     // Start a PostgreSQL container
@@ -289,10 +289,7 @@ mod tests {
       .get_host_port_ipv4(5432)
       .await
       .expect("Failed to get port");
-    let database_url = format!(
-      "postgres://postgres:postgres@{}:{}/postgres",
-      host, port
-    );
+    let database_url = format!("postgres://postgres:postgres@{}:{}/postgres", host, port);
 
     // Connect to the database
     let pool = PgPoolOptions::new()

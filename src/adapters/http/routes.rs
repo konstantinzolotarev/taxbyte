@@ -1,4 +1,4 @@
-use actix_web::{web, HttpResponse};
+use actix_web::{HttpResponse, web};
 use std::sync::Arc;
 
 use crate::application::auth::{
@@ -6,9 +6,8 @@ use crate::application::auth::{
   RegisterUserUseCase,
 };
 use crate::application::company::{
-  AddCompanyMemberUseCase, CreateCompanyUseCase, GetCompanyDetailsUseCase,
-  GetUserCompaniesUseCase, RemoveCompanyMemberUseCase, SetActiveCompanyUseCase,
-  UpdateCompanyProfileUseCase,
+  AddCompanyMemberUseCase, CreateCompanyUseCase, GetCompanyDetailsUseCase, GetUserCompaniesUseCase,
+  RemoveCompanyMemberUseCase, SetActiveCompanyUseCase, UpdateCompanyProfileUseCase,
 };
 use crate::domain::auth::ports::UserRepository;
 use crate::domain::auth::services::AuthService;
@@ -120,11 +119,14 @@ pub fn configure_web_routes(
 
   // Public routes (no authentication required)
   cfg
-    .route("/", web::get().to(|| async {
-      HttpResponse::Found()
-        .insert_header(("Location", "/login"))
-        .finish()
-    }))
+    .route(
+      "/",
+      web::get().to(|| async {
+        HttpResponse::Found()
+          .insert_header(("Location", "/login"))
+          .finish()
+      }),
+    )
     .route("/login", web::get().to(pages::login_page))
     .route("/register", web::get().to(pages::register_page));
 
@@ -163,14 +165,38 @@ pub fn configure_web_routes(
       .app_data(web::Data::new(user_repo))
       .app_data(web::Data::new(member_repo))
       .route("", web::get().to(company_web::companies_page))
-      .route("/dropdown", web::get().to(company_web::company_dropdown_handler))
-      .route("/create", web::post().to(company_web::create_company_submit))
-      .route("/{company_id}/set-active", web::post().to(company_web::set_active_company_handler))
-      .route("/{company_id}/settings", web::get().to(company_web::company_settings_page))
-      .route("/{company_id}/settings", web::post().to(company_web::update_company_settings_submit))
-      .route("/{company_id}/members", web::get().to(company_web::company_members_page))
-      .route("/{company_id}/members/add", web::post().to(company_web::add_member_submit))
-      .route("/{company_id}/members/{user_id}", web::delete().to(company_web::remove_member_handler)),
+      .route(
+        "/dropdown",
+        web::get().to(company_web::company_dropdown_handler),
+      )
+      .route(
+        "/create",
+        web::post().to(company_web::create_company_submit),
+      )
+      .route(
+        "/{company_id}/set-active",
+        web::post().to(company_web::set_active_company_handler),
+      )
+      .route(
+        "/{company_id}/settings",
+        web::get().to(company_web::company_settings_page),
+      )
+      .route(
+        "/{company_id}/settings",
+        web::post().to(company_web::update_company_settings_submit),
+      )
+      .route(
+        "/{company_id}/members",
+        web::get().to(company_web::company_members_page),
+      )
+      .route(
+        "/{company_id}/members/add",
+        web::post().to(company_web::add_member_submit),
+      )
+      .route(
+        "/{company_id}/members/{user_id}",
+        web::delete().to(company_web::remove_member_handler),
+      ),
   );
 }
 

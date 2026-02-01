@@ -1,4 +1,4 @@
-use actix_web::{cookie::Cookie, cookie::SameSite, web, HttpRequest, HttpResponse};
+use actix_web::{HttpRequest, HttpResponse, cookie::Cookie, cookie::SameSite, web};
 use serde::Deserialize;
 use std::sync::Arc;
 
@@ -89,7 +89,11 @@ pub async fn login_submit(
         .render("partials/login_form.html.tera", &context)
         .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
 
-      Ok(HttpResponse::BadRequest().content_type("text/html").body(html))
+      Ok(
+        HttpResponse::BadRequest()
+          .content_type("text/html")
+          .body(html),
+      )
     }
   }
 }
@@ -136,7 +140,11 @@ pub async fn register_submit(
         .render("partials/register_form.html.tera", &context)
         .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
 
-      Ok(HttpResponse::BadRequest().content_type("text/html").body(html))
+      Ok(
+        HttpResponse::BadRequest()
+          .content_type("text/html")
+          .body(html),
+      )
     }
   }
 }

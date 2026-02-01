@@ -1,15 +1,17 @@
-use actix_web::{web, HttpMessage, HttpRequest, HttpResponse};
+use actix_web::{HttpMessage, HttpRequest, HttpResponse, web};
 use std::sync::Arc;
 
 use crate::adapters::http::templates::TemplateEngine;
 use crate::application::company::{
-    GetCompanyDetailsCommand, GetCompanyDetailsUseCase, GetUserCompaniesCommand,
-    GetUserCompaniesUseCase,
+  GetCompanyDetailsCommand, GetCompanyDetailsUseCase, GetUserCompaniesCommand,
+  GetUserCompaniesUseCase,
 };
 use crate::domain::auth::entities::User;
 
 /// Render login page
-pub async fn login_page(templates: web::Data<TemplateEngine>) -> Result<HttpResponse, actix_web::Error> {
+pub async fn login_page(
+  templates: web::Data<TemplateEngine>,
+) -> Result<HttpResponse, actix_web::Error> {
   let mut context = tera::Context::new();
   context.insert("title", "Login");
 
@@ -52,7 +54,9 @@ pub async fn dashboard_page(
   let companies_response = get_companies_use_case
     .execute(GetUserCompaniesCommand { user_id: user.id })
     .await
-    .map_err(|e| actix_web::error::ErrorInternalServerError(format!("Failed to fetch companies: {}", e)))?;
+    .map_err(|e| {
+      actix_web::error::ErrorInternalServerError(format!("Failed to fetch companies: {}", e))
+    })?;
 
   let has_companies = !companies_response.companies.is_empty();
   let active_company = companies_response
@@ -67,7 +71,9 @@ pub async fn dashboard_page(
       .as_str()
       .ok_or_else(|| actix_web::error::ErrorInternalServerError("Invalid company ID"))?
       .parse()
-      .map_err(|e| actix_web::error::ErrorInternalServerError(format!("Failed to parse company ID: {}", e)))?;
+      .map_err(|e| {
+        actix_web::error::ErrorInternalServerError(format!("Failed to parse company ID: {}", e))
+      })?;
 
     match get_details_use_case
       .execute(GetCompanyDetailsCommand {
@@ -88,11 +94,14 @@ pub async fn dashboard_page(
 
   let mut context = tera::Context::new();
   context.insert("title", "Dashboard");
-  context.insert("user", &serde_json::json!({
-      "email": user.email.as_str(),
-      "full_name": user.full_name,
-      "created_at": user.created_at.to_rfc3339(),
-  }));
+  context.insert(
+    "user",
+    &serde_json::json!({
+        "email": user.email.as_str(),
+        "full_name": user.full_name,
+        "created_at": user.created_at.to_rfc3339(),
+    }),
+  );
   context.insert("has_companies", &has_companies);
   context.insert("companies", &companies_response.companies);
   context.insert("active_company", &active_company);

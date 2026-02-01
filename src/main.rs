@@ -1,5 +1,5 @@
 use actix_files as fs;
-use actix_web::{middleware::Logger, web, App, HttpServer};
+use actix_web::{App, HttpServer, middleware::Logger, web};
 use sqlx::postgres::PgPoolOptions;
 use std::sync::Arc;
 use std::time::Duration;
@@ -7,8 +7,8 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use taxbyte::{
   adapters::http::{
-    configure_auth_routes, configure_company_routes, configure_web_routes, AuthMiddleware,
-    RequestIdMiddleware, TemplateEngine,
+    AuthMiddleware, RequestIdMiddleware, TemplateEngine, configure_auth_routes,
+    configure_company_routes, configure_web_routes,
   },
   application::auth::{
     GetCurrentUserUseCase, LoginUserUseCase, LogoutAllDevicesUseCase, LogoutUserUseCase,
