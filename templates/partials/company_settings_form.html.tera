@@ -1,0 +1,254 @@
+<!-- Error Message -->
+{% if error %}
+<div class="mb-6 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 px-4 py-3 rounded-lg">
+  {{ error }}
+</div>
+{% endif %}
+
+{% if company.can_edit %}
+<!-- Editable Form -->
+<form
+  hx-post="/companies/{{ company.company_id }}/settings"
+  hx-target="#settings-form-container"
+  hx-swap="outerHTML"
+  id="settings-form-container"
+>
+  <!-- Basic Information Section -->
+  <div class="mb-8">
+    <h2 class="text-xl font-semibold text-gray-900 dark:text-white mb-4">Basic Information</h2>
+
+    <div class="space-y-4">
+      <!-- Email -->
+      <div>
+        <label for="email" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          Company Email
+        </label>
+        <input
+          type="email"
+          id="email"
+          name="email"
+          value="{{ form_email | default(value=company.email) | default(value="") }}"
+          placeholder="company@example.com"
+          class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+        />
+      </div>
+
+      <!-- Phone -->
+      <div>
+        <label for="phone" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          Phone Number
+        </label>
+        <input
+          type="tel"
+          id="phone"
+          name="phone"
+          value="{{ form_phone | default(value=company.phone) | default(value="") }}"
+          placeholder="+1 (555) 123-4567"
+          class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+        />
+        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">10-20 characters, digits, spaces, +, -, (, ) allowed</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Address Section -->
+  <div class="mb-8">
+    <h2 class="text-xl font-semibold text-gray-900 dark:text-white mb-4">Address</h2>
+
+    <div class="space-y-4">
+      <!-- Street -->
+      <div>
+        <label for="street" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          Street Address
+        </label>
+        <input
+          type="text"
+          id="street"
+          name="street"
+          value="{% if company.address %}{{ company.address.street | default(value="") }}{% endif %}"
+          placeholder="123 Main St"
+          class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+        />
+      </div>
+
+      <!-- City -->
+      <div>
+        <label for="city" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          City
+        </label>
+        <input
+          type="text"
+          id="city"
+          name="city"
+          value="{% if company.address %}{{ company.address.city | default(value="") }}{% endif %}"
+          placeholder="New York"
+          class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+        />
+      </div>
+
+      <!-- State & Postal Code (Grid) -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label for="state" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            State / Province
+          </label>
+          <input
+            type="text"
+            id="state"
+            name="state"
+            value="{% if company.address %}{{ company.address.state | default(value="") }}{% endif %}"
+            placeholder="NY"
+            class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+          />
+        </div>
+
+        <div>
+          <label for="postal_code" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Postal Code
+          </label>
+          <input
+            type="text"
+            id="postal_code"
+            name="postal_code"
+            value="{% if company.address %}{{ company.address.postal_code | default(value="") }}{% endif %}"
+            placeholder="10001"
+            class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+          />
+        </div>
+      </div>
+
+      <!-- Country -->
+      <div>
+        <label for="country" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          Country
+        </label>
+        <input
+          type="text"
+          id="country"
+          name="country"
+          value="{% if company.address %}{{ company.address.country | default(value="") }}{% endif %}"
+          placeholder="United States"
+          class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+        />
+      </div>
+    </div>
+  </div>
+
+  <!-- Tax Information Section -->
+  <div class="mb-8">
+    <h2 class="text-xl font-semibold text-gray-900 dark:text-white mb-4">Tax Information</h2>
+
+    <div class="space-y-4">
+      <!-- Registry Code -->
+      <div>
+        <label for="registry_code" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          Registry Code / Tax ID
+        </label>
+        <input
+          type="text"
+          id="registry_code"
+          name="registry_code"
+          value="{{ company.registry_code | default(value="") }}"
+          placeholder="12-3456789"
+          maxlength="50"
+          class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+        />
+      </div>
+
+      <!-- VAT Number -->
+      <div>
+        <label for="vat_number" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          VAT Number
+        </label>
+        <input
+          type="text"
+          id="vat_number"
+          name="vat_number"
+          value="{{ company.vat_number | default(value="") }}"
+          placeholder="GB123456789"
+          maxlength="50"
+          class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+        />
+      </div>
+    </div>
+  </div>
+
+  <!-- Actions -->
+  <div class="flex items-center justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+    <a
+      href="/companies"
+      class="px-6 py-2 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 font-medium rounded-lg transition-colors"
+    >
+      Cancel
+    </a>
+    <button
+      type="submit"
+      class="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"
+    >
+      Save Changes
+    </button>
+  </div>
+</form>
+
+{% else %}
+<!-- Read-Only View -->
+<div id="settings-form-container">
+  <!-- Basic Information Section -->
+  <div class="mb-8">
+    <h2 class="text-xl font-semibold text-gray-900 dark:text-white mb-4">Basic Information</h2>
+
+    <div class="space-y-4">
+      <div>
+        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Company Email</label>
+        <p class="text-gray-900 dark:text-white">{{ company.email | default(value="Not set") }}</p>
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Phone Number</label>
+        <p class="text-gray-900 dark:text-white">{{ company.phone | default(value="Not set") }}</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Address Section -->
+  <div class="mb-8">
+    <h2 class="text-xl font-semibold text-gray-900 dark:text-white mb-4">Address</h2>
+
+    {% if company.address %}
+    <div class="text-gray-900 dark:text-white">
+      {% if company.address.street %}<p>{{ company.address.street }}</p>{% endif %}
+      {% if company.address.city or company.address.state or company.address.postal_code %}
+      <p>
+        {% if company.address.city %}{{ company.address.city }}{% endif %}{% if company.address.state %}, {{ company.address.state }}{% endif %}{% if company.address.postal_code %} {{ company.address.postal_code }}{% endif %}
+      </p>
+      {% endif %}
+      {% if company.address.country %}<p>{{ company.address.country }}</p>{% endif %}
+    </div>
+    {% else %}
+    <p class="text-gray-500 dark:text-gray-400">No address set</p>
+    {% endif %}
+  </div>
+
+  <!-- Tax Information Section -->
+  <div class="mb-8">
+    <h2 class="text-xl font-semibold text-gray-900 dark:text-white mb-4">Tax Information</h2>
+
+    <div class="space-y-4">
+      <div>
+        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Registry Code / Tax ID</label>
+        <p class="text-gray-900 dark:text-white">{{ company.registry_code | default(value="Not set") }}</p>
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">VAT Number</label>
+        <p class="text-gray-900 dark:text-white">{{ company.vat_number | default(value="Not set") }}</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Info Message -->
+  <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-400 px-4 py-3 rounded-lg">
+    Only company owners and admins can edit these settings.
+  </div>
+</div>
+{% endif %}

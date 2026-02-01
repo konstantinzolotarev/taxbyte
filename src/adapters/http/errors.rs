@@ -7,6 +7,7 @@ use serde::Serialize;
 use std::fmt;
 
 use crate::domain::auth::errors::{AuthError, RepositoryError};
+use crate::domain::company::CompanyError;
 
 use super::dtos::ErrorResponse;
 
@@ -175,6 +176,27 @@ impl From<validator::ValidationErrors> for ApiError {
       .collect();
 
     ApiError::Validation(messages.join(", "))
+  }
+}
+
+/// Convert CompanyError to ApiError
+impl From<CompanyError> for ApiError {
+  fn from(error: CompanyError) -> Self {
+    match error {
+      CompanyError::NotFound => ApiError::Validation("Company not found".to_string()),
+      CompanyError::NotMember => ApiError::Auth(AuthErrorKind::InvalidSession),
+      CompanyError::AlreadyMember => {
+        ApiError::Validation("User is already a member".to_string())
+      }
+      CompanyError::InsufficientPermissions => ApiError::Auth(AuthErrorKind::AccountDeleted),
+      CompanyError::CannotRemoveLastOwner => {
+        ApiError::Validation("Cannot remove the last owner".to_string())
+      }
+      CompanyError::UserNotFound => ApiError::Auth(AuthErrorKind::UserNotFound),
+      CompanyError::Repository(e) => ApiError::Internal(format!("Repository error: {}", e)),
+      CompanyError::Validation(e) => ApiError::Validation(e.to_string()),
+      CompanyError::Auth(e) => ApiError::from(e),
+    }
   }
 }
 

@@ -31,8 +31,6 @@ impl TemplateEngine {
 
 #[cfg(test)]
 mod tests {
-  use super::*;
-
   #[test]
   fn test_template_engine_creation() {
     // In test environment, templates might not exist

@@ -1,0 +1,60 @@
+{# Member Row Partial - Used in members table #}
+<tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+  <!-- Member Info -->
+  <td class="px-6 py-4 whitespace-nowrap">
+    <div class="flex items-center">
+      <div class="flex-shrink-0 h-10 w-10">
+        <div class="h-10 w-10 rounded-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center">
+          <span class="text-sm font-medium text-primary-700 dark:text-primary-300">
+            {% if member.full_name %}
+              {{ member.full_name | truncate(length=1, end="") | upper }}
+            {% else %}
+              {{ member.email | truncate(length=1, end="") | upper }}
+            {% endif %}
+          </span>
+        </div>
+      </div>
+      <div class="ml-4">
+        <div class="text-sm font-medium text-gray-900 dark:text-white">
+          {{ member.full_name | default(value="") }}
+        </div>
+        <div class="text-sm text-gray-500 dark:text-gray-400">
+          {{ member.email }}
+        </div>
+      </div>
+    </div>
+  </td>
+
+  <!-- Role Badge -->
+  <td class="px-6 py-4 whitespace-nowrap">
+    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {% if member.role == 'owner' %}bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300{% elif member.role == 'admin' %}bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300{% else %}bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300{% endif %}">
+      {{ member.role | capitalize }}
+    </span>
+  </td>
+
+  <!-- Joined Date -->
+  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+    {{ member.joined_at }}
+  </td>
+
+  <!-- Actions -->
+  {% if can_manage_members %}
+    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+      {% if member.role != 'owner' and members | length > 1 %}
+        <button
+          hx-delete="/companies/{{ company.company_id }}/members/{{ member.user_id }}"
+          hx-confirm="Are you sure you want to remove {{ member.email }} from this company?"
+          hx-target="closest tr"
+          hx-swap="outerHTML swap:1s"
+          class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300 transition-colors"
+        >
+          Remove
+        </button>
+      {% else %}
+        <span class="text-gray-400 dark:text-gray-600">
+          {% if member.role == 'owner' %}Owner{% else %}-{% endif %}
+        </span>
+      {% endif %}
+    </td>
+  {% endif %}
+</tr>

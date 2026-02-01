@@ -5,3 +5,4 @@
 //! repositories, and other components to fulfill business requirements.
 
 pub mod auth;
+pub mod company;

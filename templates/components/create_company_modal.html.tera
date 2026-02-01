@@ -1,0 +1,55 @@
+{# Create Company Modal Component #}
+<div id="create-company-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+  <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4">
+    <!-- Modal Header -->
+    <div class="flex justify-between items-center px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+      <h2 class="text-xl font-semibold text-gray-900 dark:text-white">Create New Company</h2>
+      <button
+        onclick="closeCreateCompanyModal()"
+        class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+        aria-label="Close modal"
+      >
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Modal Body -->
+    <div id="create-company-form-container" class="px-6 py-4">
+      {% include "partials/create_company_form.html.tera" %}
+    </div>
+  </div>
+</div>
+
+<script>
+  function openCreateCompanyModal() {
+    document.getElementById('create-company-modal').classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeCreateCompanyModal() {
+    document.getElementById('create-company-modal').classList.add('hidden');
+    document.body.style.overflow = '';
+    // Reset form
+    const form = document.querySelector('#create-company-form-container form');
+    if (form) form.reset();
+    // Clear errors
+    const errorDiv = document.getElementById('create-company-error');
+    if (errorDiv) errorDiv.classList.add('hidden');
+  }
+
+  // Close modal on Escape key
+  document.addEventListener('keydown', function(event) {
+    if (event.key === 'Escape') {
+      closeCreateCompanyModal();
+    }
+  });
+
+  // Close modal when clicking outside
+  document.getElementById('create-company-modal')?.addEventListener('click', function(event) {
+    if (event.target === this) {
+      closeCreateCompanyModal();
+    }
+  });
+</script>

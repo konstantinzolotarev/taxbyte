@@ -1,0 +1,186 @@
+use async_trait::async_trait;
+use chrono::{DateTime, Utc};
+use sqlx::{FromRow, PgPool};
+use uuid::Uuid;
+
+use crate::domain::auth::errors::RepositoryError;
+use crate::domain::auth::value_objects::Email;
+use crate::domain::company::{
+    Company, CompanyAddress, CompanyError, CompanyRepository, PhoneNumber, RegistryCode,
+    VatNumber,
+};
+
+#[derive(Debug, FromRow)]
+struct CompanyRow {
+    id: Uuid,
+    name: String,
+    email: Option<String>,
+    phone: Option<String>,
+    address: Option<String>,        // JSON string
+    tax_id: Option<String>,         // Maps to registry_code
+    vat_number: Option<String>,
+    created_at: DateTime<Utc>,
+    updated_at: DateTime<Utc>,
+}
+
+impl TryFrom<CompanyRow> for Company {
+    type Error = CompanyError;
+
+    fn try_from(row: CompanyRow) -> Result<Self, Self::Error> {
+        // Parse email
+        let email = row
+            .email
+            .map(|e| Email::new(e))
+            .transpose()
+            .map_err(CompanyError::from)?;
+
+        // Parse phone
+        let phone = row
+            .phone
+            .map(|p| PhoneNumber::new(p))
+            .transpose()
+            .map_err(CompanyError::Validation)?;
+
+        // Parse address from JSON
+        let address = row
+            .address
+            .map(|a| {
+                serde_json::from_str::<CompanyAddress>(&a)
+                    .map_err(|e| CompanyError::Repository(RepositoryError::QueryFailed(e.to_string())))
+            })
+            .transpose()?;
+
+        // Parse registry_code (tax_id)
+        let registry_code = row
+            .tax_id
+            .map(|t| RegistryCode::new(t))
+            .transpose()
+            .map_err(CompanyError::Validation)?;
+
+        // Parse vat_number
+        let vat_number = row
+            .vat_number
+            .map(|v| VatNumber::new(v))
+            .transpose()
+            .map_err(CompanyError::Validation)?;
+
+        Ok(Company::from_db(
+            row.id,
+            row.name,
+            email,
+            phone,
+            address,
+            registry_code,
+            vat_number,
+            row.created_at,
+            row.updated_at,
+        ))
+    }
+}
+
+pub struct PostgresCompanyRepository {
+    pool: PgPool,
+}
+
+impl PostgresCompanyRepository {
+    pub fn new(pool: PgPool) -> Self {
+        Self { pool }
+    }
+}
+
+#[async_trait]
+impl CompanyRepository for PostgresCompanyRepository {
+    async fn create(&self, company: Company) -> Result<Company, CompanyError> {
+        // Serialize address to JSON if present
+        let address_json = company
+            .address
+            .as_ref()
+            .map(|a| a.as_json())
+            .transpose()
+            .map_err(|e| {
+                CompanyError::Repository(crate::domain::auth::errors::RepositoryError::QueryFailed(
+                    e.to_string(),
+                ))
+            })?;
+
+        let row = sqlx::query_as::<_, CompanyRow>(
+            r#"
+            INSERT INTO companies (id, name, email, phone, address, tax_id, vat_number, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            RETURNING id, name, email, phone, address, tax_id, vat_number, created_at, updated_at
+            "#,
+        )
+        .bind(company.id)
+        .bind(&company.name)
+        .bind(company.email.as_ref().map(|e| e.as_str()))
+        .bind(company.phone.as_ref().map(|p| p.as_str()))
+        .bind(address_json.as_deref())
+        .bind(company.registry_code.as_ref().map(|r| r.as_str()))
+        .bind(company.vat_number.as_ref().map(|v| v.as_str()))
+        .bind(company.created_at)
+        .bind(company.updated_at)
+        .fetch_one(&self.pool)
+        .await?;
+
+        row.try_into()
+    }
+
+    async fn find_by_id(&self, id: Uuid) -> Result<Option<Company>, CompanyError> {
+        let row = sqlx::query_as::<_, CompanyRow>(
+            r#"
+            SELECT id, name, email, phone, address, tax_id, vat_number, created_at, updated_at
+            FROM companies
+            WHERE id = $1
+            "#,
+        )
+        .bind(id)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        row.map(|r| r.try_into()).transpose()
+    }
+
+    async fn update(&self, company: Company) -> Result<Company, CompanyError> {
+        // Serialize address to JSON if present
+        let address_json = company
+            .address
+            .as_ref()
+            .map(|a| a.as_json())
+            .transpose()
+            .map_err(|e| {
+                CompanyError::Repository(crate::domain::auth::errors::RepositoryError::QueryFailed(
+                    e.to_string(),
+                ))
+            })?;
+
+        let row = sqlx::query_as::<_, CompanyRow>(
+            r#"
+            UPDATE companies
+            SET name = $2, email = $3, phone = $4, address = $5, tax_id = $6, vat_number = $7, updated_at = $8
+            WHERE id = $1
+            RETURNING id, name, email, phone, address, tax_id, vat_number, created_at, updated_at
+            "#,
+        )
+        .bind(company.id)
+        .bind(&company.name)
+        .bind(company.email.as_ref().map(|e| e.as_str()))
+        .bind(company.phone.as_ref().map(|p| p.as_str()))
+        .bind(address_json.as_deref())
+        .bind(company.registry_code.as_ref().map(|r| r.as_str()))
+        .bind(company.vat_number.as_ref().map(|v| v.as_str()))
+        .bind(company.updated_at)
+        .fetch_one(&self.pool)
+        .await?;
+
+        row.try_into()
+    }
+
+    async fn delete(&self, id: Uuid) -> Result<(), CompanyError> {
+        sqlx::query("DELETE FROM companies WHERE id = $1")
+            .bind(id)
+            .execute(&self.pool)
+            .await?;
+
+        Ok(())
+    }
+}

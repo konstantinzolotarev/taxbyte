@@ -29,6 +29,9 @@
   <!-- HTMX -->
   <script src="https://unpkg.com/htmx.org@2.0.4"></script>
 
+  <!-- Alpine.js -->
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
   <!-- Custom CSS -->
   <link rel="stylesheet" href="/static/css/custom.css">
 

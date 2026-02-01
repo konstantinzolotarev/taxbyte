@@ -4,36 +4,156 @@
 
 {% block content %}
 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-  <div class="mb-8">
-    <h1 class="text-3xl font-bold text-gray-900 dark:text-white">Welcome back!</h1>
-    <p class="mt-2 text-gray-600 dark:text-gray-400">{{ user.email }}</p>
-  </div>
+  {% if has_companies %}
+    <!-- Existing Dashboard Content -->
+    <div class="mb-8">
+      <h1 class="text-3xl font-bold text-gray-900 dark:text-white">Welcome back!</h1>
+      <p class="mt-2 text-gray-600 dark:text-gray-400">{{ user.email }}</p>
+      {% if active_company %}
+        <p class="mt-1 text-sm text-gray-500 dark:text-gray-500">
+          Active Company: <span class="font-medium text-primary-600 dark:text-primary-400">{{ active_company.name }}</span>
+        </p>
+      {% endif %}
+    </div>
 
-  <!-- User Info Card -->
-  <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 mb-6">
-    <h2 class="text-xl font-semibold mb-4 text-gray-900 dark:text-white">Account Information</h2>
-    <div class="space-y-3">
-      <div>
-        <span class="text-sm font-medium text-gray-500 dark:text-gray-400">Full Name:</span>
-        <span class="ml-2 text-gray-900 dark:text-white">{{ user.full_name }}</span>
-      </div>
-      <div>
-        <span class="text-sm font-medium text-gray-500 dark:text-gray-400">Email:</span>
-        <span class="ml-2 text-gray-900 dark:text-white">{{ user.email }}</span>
-      </div>
-      <div>
-        <span class="text-sm font-medium text-gray-500 dark:text-gray-400">Member Since:</span>
-        <span class="ml-2 text-gray-900 dark:text-white">{{ user.created_at }}</span>
+    <!-- User Info Card -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 mb-6">
+      <h2 class="text-xl font-semibold mb-4 text-gray-900 dark:text-white">Account Information</h2>
+      <div class="space-y-3">
+        <div>
+          <span class="text-sm font-medium text-gray-500 dark:text-gray-400">Full Name:</span>
+          <span class="ml-2 text-gray-900 dark:text-white">{{ user.full_name }}</span>
+        </div>
+        <div>
+          <span class="text-sm font-medium text-gray-500 dark:text-gray-400">Email:</span>
+          <span class="ml-2 text-gray-900 dark:text-white">{{ user.email }}</span>
+        </div>
+        <div>
+          <span class="text-sm font-medium text-gray-500 dark:text-gray-400">Member Since:</span>
+          <span class="ml-2 text-gray-900 dark:text-white">{{ user.created_at }}</span>
+        </div>
       </div>
     </div>
-  </div>
 
-  <!-- Quick Actions -->
-  <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
-    <h2 class="text-xl font-semibold mb-4 text-gray-900 dark:text-white">Quick Actions</h2>
-    <div class="space-y-2">
-      <p class="text-gray-600 dark:text-gray-400">Tax and invoice management features coming soon!</p>
+    <!-- Company Information -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6" x-data="{ expanded: false }">
+      <div class="flex items-center justify-between mb-4">
+        <button
+          @click="expanded = !expanded"
+          class="flex items-center gap-2 text-xl font-semibold text-gray-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+        >
+          <span>Company Information</span>
+          <svg
+            x-show="!expanded"
+            class="w-5 h-5"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+          </svg>
+          <svg
+            x-show="expanded"
+            class="w-5 h-5"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" />
+          </svg>
+        </button>
+        {% if active_company_details and active_company_details.can_edit %}
+        <a
+          href="/companies/{{ active_company_details.company_id }}/settings"
+          class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
+        >
+          Edit Company
+        </a>
+        {% endif %}
+      </div>
+
+      <div x-show="expanded" x-collapse>
+      {% if active_company_details %}
+        <!-- Basic Information -->
+        <div class="mb-6">
+          <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">Contact Information</h3>
+          <div class="space-y-3">
+            <div>
+              <p class="text-sm text-gray-500 dark:text-gray-400">Email</p>
+              <p class="text-gray-900 dark:text-white">{{ active_company_details.email | default(value="Not set") }}</p>
+            </div>
+            <div>
+              <p class="text-sm text-gray-500 dark:text-gray-400">Phone</p>
+              <p class="text-gray-900 dark:text-white">{{ active_company_details.phone | default(value="Not set") }}</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Address -->
+        <div class="mb-6">
+          <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">Address</h3>
+          {% if active_company_details.address %}
+            <div class="text-gray-900 dark:text-white space-y-1">
+              {% if active_company_details.address.street %}
+                <p>{{ active_company_details.address.street }}</p>
+              {% endif %}
+              {% if active_company_details.address.city or active_company_details.address.state or active_company_details.address.postal_code %}
+                <p>
+                  {% if active_company_details.address.city %}{{ active_company_details.address.city }}{% endif %}{% if active_company_details.address.state %}, {{ active_company_details.address.state }}{% endif %}{% if active_company_details.address.postal_code %} {{ active_company_details.address.postal_code }}{% endif %}
+                </p>
+              {% endif %}
+              {% if active_company_details.address.country %}
+                <p>{{ active_company_details.address.country }}</p>
+              {% endif %}
+            </div>
+          {% else %}
+            <p class="text-gray-500 dark:text-gray-400">No address set</p>
+          {% endif %}
+        </div>
+
+        <!-- Tax Information -->
+        <div>
+          <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">Tax Information</h3>
+          <div class="space-y-3">
+            <div>
+              <p class="text-sm text-gray-500 dark:text-gray-400">Registry Code / Tax ID</p>
+              <p class="text-gray-900 dark:text-white">{{ active_company_details.registry_code | default(value="Not set") }}</p>
+            </div>
+            <div>
+              <p class="text-sm text-gray-500 dark:text-gray-400">VAT Number</p>
+              <p class="text-gray-900 dark:text-white">{{ active_company_details.vat_number | default(value="Not set") }}</p>
+            </div>
+          </div>
+        </div>
+      {% else %}
+        <!-- No active company selected -->
+        <div class="text-center py-8">
+          <p class="text-gray-500 dark:text-gray-400 mb-4">No active company selected</p>
+          <a
+            href="/companies"
+            class="inline-block px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
+          >
+            Manage Companies
+          </a>
+        </div>
+      {% endif %}
+      </div>
     </div>
-  </div>
+  {% else %}
+    <!-- Empty State for First-Time Users -->
+    {% include "partials/empty_company_state.html.tera" %}
+  {% endif %}
 </div>
+
+<!-- Create Company Modal -->
+{% include "components/create_company_modal.html.tera" %}
+
+<!-- Auto-open modal for first-time users -->
+{% if not has_companies %}
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    openCreateCompanyModal();
+  });
+</script>
+{% endif %}
 {% endblock %}

@@ -1,0 +1,168 @@
+{% extends "layouts/base.html.tera" %}
+
+{% block title %}Team Members - {{ company.name }} - TaxByte{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+  <!-- Breadcrumb -->
+  <nav class="mb-6 text-sm">
+    <ol class="flex items-center gap-2 text-gray-500 dark:text-gray-400">
+      <li><a href="/companies" class="hover:text-primary-600 dark:hover:text-primary-400">Companies</a></li>
+      <li><svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path></svg></li>
+      <li class="text-gray-900 dark:text-white font-medium">{{ company.name }}</li>
+    </ol>
+  </nav>
+
+  <!-- Header -->
+  <div class="mb-8 flex justify-between items-start">
+    <div>
+      <h1 class="text-3xl font-bold text-gray-900 dark:text-white">Team Members</h1>
+      <p class="mt-2 text-gray-600 dark:text-gray-400">Manage team members for {{ company.name }}</p>
+    </div>
+    {% if can_manage_members %}
+      <button
+        onclick="toggleAddMemberForm()"
+        id="add-member-button"
+        class="inline-flex items-center gap-2 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white font-medium rounded-lg transition-colors"
+      >
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+        </svg>
+        Add Member
+      </button>
+    {% endif %}
+  </div>
+
+  <!-- Add Member Form (Hidden by default) -->
+  {% if can_manage_members %}
+    <div id="add-member-form-section" class="hidden mb-8">
+      <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Add New Member</h2>
+        <form
+          hx-post="/companies/{{ company.company_id }}/members/add"
+          hx-swap="none"
+          hx-on::after-request="if(event.detail.successful) { window.location.reload(); } else { document.getElementById('add-member-error').classList.remove('hidden'); }"
+          class="space-y-4"
+        >
+          <!-- Error Display -->
+          <div id="add-member-error" class="hidden bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 px-4 py-3 rounded-lg">
+            <p class="text-sm">Failed to add member. Please check the email and try again.</p>
+          </div>
+
+          <div class="grid md:grid-cols-2 gap-4">
+            <!-- Email Input -->
+            <div>
+              <label for="member-email" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Email Address <span class="text-red-500">*</span>
+              </label>
+              <input
+                type="email"
+                id="member-email"
+                name="email"
+                required
+                placeholder="colleague@example.com"
+                class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500"
+              >
+            </div>
+
+            <!-- Role Select -->
+            <div>
+              <label for="member-role" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Role <span class="text-red-500">*</span>
+              </label>
+              <select
+                id="member-role"
+                name="role"
+                required
+                class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              >
+                <option value="member">Member</option>
+                <option value="admin">Admin</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Actions -->
+          <div class="flex justify-end gap-3">
+            <button
+              type="button"
+              onclick="toggleAddMemberForm()"
+              class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              class="px-6 py-2 bg-primary-600 hover:bg-primary-700 text-white font-medium rounded-lg transition-colors flex items-center gap-2"
+            >
+              <span>Add Member</span>
+              <svg class="htmx-indicator animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  {% endif %}
+
+  <!-- Members Table -->
+  {% if members and members | length > 0 %}
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden">
+      <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+        <thead class="bg-gray-50 dark:bg-gray-700">
+          <tr>
+            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+              Member
+            </th>
+            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+              Role
+            </th>
+            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+              Joined
+            </th>
+            {% if can_manage_members %}
+              <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                Actions
+              </th>
+            {% endif %}
+          </tr>
+        </thead>
+        <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+          {% for member in members %}
+            {% include "partials/member_row.html.tera" %}
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <!-- Empty State -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-12 text-center">
+      <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-700 mb-4">
+        <svg class="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
+        </svg>
+      </div>
+      <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">No members yet</h3>
+      <p class="text-gray-600 dark:text-gray-400">Add team members to collaborate on this company.</p>
+    </div>
+  {% endif %}
+</div>
+
+<script>
+  function toggleAddMemberForm() {
+    const form = document.getElementById('add-member-form-section');
+    const error = document.getElementById('add-member-error');
+    form.classList.toggle('hidden');
+    if (!form.classList.contains('hidden')) {
+      document.getElementById('member-email').focus();
+      error.classList.add('hidden');
+    } else {
+      // Reset form
+      document.querySelector('#add-member-form-section form').reset();
+      error.classList.add('hidden');
+    }
+  }
+</script>
+{% endblock %}

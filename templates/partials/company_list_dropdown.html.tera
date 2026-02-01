@@ -1,0 +1,62 @@
+{# Company List Dropdown Partial - Loaded via HTMX #}
+<div class="max-h-80 overflow-y-auto">
+  {% if companies and companies | length > 0 %}
+    <!-- Companies List -->
+    <div class="py-2">
+      {% for company in companies %}
+        <button
+          hx-post="/companies/{{ company.company_id }}/set-active"
+          hx-swap="none"
+          hx-on::after-request="window.location.reload()"
+          class="w-full px-4 py-2.5 text-left hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center justify-between group"
+        >
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2">
+              <span class="font-medium text-gray-900 dark:text-white truncate">{{ company.name }}</span>
+              {% if company.is_active %}
+                <svg class="w-4 h-4 text-green-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                </svg>
+              {% endif %}
+            </div>
+            <span class="text-xs {% if company.role == 'owner' %}text-purple-600 dark:text-purple-400{% elif company.role == 'admin' %}text-blue-600 dark:text-blue-400{% else %}text-gray-500 dark:text-gray-400{% endif %}">
+              {{ company.role | capitalize }}
+            </span>
+          </div>
+          {% if not company.is_active %}
+            <span class="text-xs text-primary-600 dark:text-primary-400 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 ml-2">
+              Switch
+            </span>
+          {% endif %}
+        </button>
+      {% endfor %}
+    </div>
+
+    <!-- Divider -->
+    <div class="border-t border-gray-200 dark:border-gray-700 my-2"></div>
+  {% endif %}
+
+  <!-- Actions -->
+  <div class="py-2">
+    <button
+      onclick="openCreateCompanyModal()"
+      class="w-full px-4 py-2 text-left text-primary-600 dark:text-primary-400 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center gap-2 font-medium"
+    >
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+      </svg>
+      Create New Company
+    </button>
+
+    <a
+      href="/companies"
+      class="block w-full px-4 py-2 text-left text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center gap-2"
+    >
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+      </svg>
+      Manage Companies
+    </a>
+  </div>
+</div>

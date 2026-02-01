@@ -127,6 +127,67 @@ pub struct ErrorResponse {
   pub details: Option<serde_json::Value>,
 }
 
+// ============ Company DTOs ============
+
+/// Request to create a new company
+#[derive(Debug, Clone, Deserialize, Validate)]
+pub struct CreateCompanyRequest {
+  #[validate(length(
+    min = 1,
+    max = 255,
+    message = "Company name must be between 1 and 255 characters"
+  ))]
+  pub name: String,
+}
+
+/// Response after creating a company
+#[derive(Debug, Clone, Serialize)]
+pub struct CreateCompanyResponse {
+  pub company_id: Uuid,
+  pub name: String,
+  pub created_at: DateTime<Utc>,
+}
+
+/// Request to set active company
+#[derive(Debug, Clone, Deserialize, Validate)]
+pub struct SetActiveCompanyRequest {
+  pub company_id: Uuid,
+}
+
+/// Response containing list of companies
+#[derive(Debug, Clone, Serialize)]
+pub struct CompanyListResponse {
+  pub companies: Vec<CompanyListItemDto>,
+}
+
+/// Company list item
+#[derive(Debug, Clone, Serialize)]
+pub struct CompanyListItemDto {
+  pub company_id: Uuid,
+  pub name: String,
+  pub role: String,
+  pub is_active: bool,
+}
+
+/// Request to add a member to a company
+#[derive(Debug, Clone, Deserialize, Validate)]
+pub struct AddCompanyMemberRequest {
+  #[validate(email(message = "Invalid email format"))]
+  pub email: String,
+
+  #[validate(length(min = 1, message = "Role is required"))]
+  pub role: String, // "owner", "admin", or "member"
+}
+
+/// Company member details
+#[derive(Debug, Clone, Serialize)]
+pub struct CompanyMemberDto {
+  pub user_id: Uuid,
+  pub email: String,
+  pub role: String,
+  pub joined_at: DateTime<Utc>,
+}
+
 #[cfg(test)]
 mod tests {
   use super::*;

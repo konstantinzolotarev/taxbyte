@@ -6,15 +6,25 @@ use std::time::Duration;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use taxbyte::{
-  adapters::http::{configure_auth_routes, configure_web_routes, RequestIdMiddleware, TemplateEngine},
+  adapters::http::{
+    configure_auth_routes, configure_company_routes, configure_web_routes, AuthMiddleware,
+    RequestIdMiddleware, TemplateEngine,
+  },
   application::auth::{
     GetCurrentUserUseCase, LoginUserUseCase, LogoutAllDevicesUseCase, LogoutUserUseCase,
     RegisterUserUseCase,
   },
+  application::company::{
+    AddCompanyMemberUseCase, CreateCompanyUseCase, GetCompanyDetailsUseCase,
+    GetUserCompaniesUseCase, RemoveCompanyMemberUseCase, SetActiveCompanyUseCase,
+    UpdateCompanyProfileUseCase,
+  },
   domain::auth::services::AuthService,
+  domain::company::services::CompanyService,
   infrastructure::{
     config::Config,
     persistence::postgres::{
+      PostgresActiveCompanyRepository, PostgresCompanyMemberRepository, PostgresCompanyRepository,
       PostgresLoginAttemptRepository, PostgresSessionRepository, PostgresUserRepository,
     },
     security::{Argon2PasswordHasher, SecureTokenGenerator},
@@ -139,6 +149,11 @@ async fn main() -> std::io::Result<()> {
   ));
   let login_attempt_repo = Arc::new(PostgresLoginAttemptRepository::new(db_pool.clone()));
 
+  // Initialize company repositories
+  let company_repo = Arc::new(PostgresCompanyRepository::new(db_pool.clone()));
+  let company_member_repo = Arc::new(PostgresCompanyMemberRepository::new(db_pool.clone()));
+  let active_company_repo = Arc::new(PostgresActiveCompanyRepository::new(db_pool.clone()));
+
   // Initialize security services
   let password_hasher =
     Arc::new(Argon2PasswordHasher::new().expect("Failed to create password hasher"));
@@ -153,12 +168,36 @@ async fn main() -> std::io::Result<()> {
     token_generator,
   ));
 
+  // Initialize company service
+  let company_service = Arc::new(CompanyService::new(
+    company_repo.clone(),
+    company_member_repo.clone(),
+    active_company_repo.clone(),
+    user_repo.clone(),
+  ));
+
   // Initialize use cases
   let register_use_case = Arc::new(RegisterUserUseCase::new(auth_service.clone()));
   let login_use_case = Arc::new(LoginUserUseCase::new(auth_service.clone()));
   let logout_use_case = Arc::new(LogoutUserUseCase::new(auth_service.clone()));
   let logout_all_use_case = Arc::new(LogoutAllDevicesUseCase::new(auth_service.clone()));
   let get_user_use_case = Arc::new(GetCurrentUserUseCase::new(auth_service.clone()));
+
+  // Initialize company use cases
+  let create_company_use_case = Arc::new(CreateCompanyUseCase::new(company_service.clone()));
+  let get_companies_use_case = Arc::new(GetUserCompaniesUseCase::new(
+    company_service.clone(),
+    company_member_repo.clone(),
+    active_company_repo.clone(),
+  ));
+  let set_active_use_case = Arc::new(SetActiveCompanyUseCase::new(company_service.clone()));
+  let add_member_use_case = Arc::new(AddCompanyMemberUseCase::new(company_service.clone()));
+  let remove_member_use_case = Arc::new(RemoveCompanyMemberUseCase::new(company_service.clone()));
+  let get_details_use_case = Arc::new(GetCompanyDetailsUseCase::new(
+    company_service.clone(),
+    company_member_repo.clone(),
+  ));
+  let update_profile_use_case = Arc::new(UpdateCompanyProfileUseCase::new(company_service.clone()));
 
   // Initialize template engine
   let templates = TemplateEngine::new().expect("Failed to initialize template engine");
@@ -184,6 +223,15 @@ async fn main() -> std::io::Result<()> {
           auth_service.clone(),
           register_use_case.clone(),
           login_use_case.clone(),
+          get_companies_use_case.clone(),
+          create_company_use_case.clone(),
+          set_active_use_case.clone(),
+          add_member_use_case.clone(),
+          remove_member_use_case.clone(),
+          get_details_use_case.clone(),
+          update_profile_use_case.clone(),
+          user_repo.clone(),
+          company_member_repo.clone(),
         )
       })
       // Configure API routes
@@ -197,6 +245,21 @@ async fn main() -> std::io::Result<()> {
           get_user_use_case.clone(),
         )
       }))
+      // Configure company API routes (protected with AuthMiddleware)
+      .service(
+        web::scope("/api/v1/companies")
+          .wrap(AuthMiddleware::new(get_user_use_case.clone()))
+          .configure(|cfg| {
+            configure_company_routes(
+              cfg,
+              create_company_use_case.clone(),
+              get_companies_use_case.clone(),
+              set_active_use_case.clone(),
+              add_member_use_case.clone(),
+              remove_member_use_case.clone(),
+            )
+          }),
+      )
       // Static files
       .service(fs::Files::new("/static", "./static"))
       // Health check endpoint
