@@ -5,7 +5,8 @@ use uuid::Uuid;
 
 use crate::domain::auth::value_objects::Email;
 use crate::domain::company::{
-  CompanyAddress, CompanyError, CompanyService, PhoneNumber, RegistryCode, VatNumber,
+  CompanyAddress, CompanyError, CompanyProfileUpdate, CompanyService, PhoneNumber, RegistryCode,
+  VatNumber,
 };
 
 use super::get_company_details::CompanyAddressData;
@@ -82,18 +83,19 @@ impl UpdateCompanyProfileUseCase {
       .transpose()
       .map_err(CompanyError::Validation)?;
 
+    // Create profile update struct
+    let profile = CompanyProfileUpdate {
+      email,
+      phone,
+      address,
+      registry_code,
+      vat_number,
+    };
+
     // Call service
     let company = self
       .company_service
-      .update_company_profile(
-        command.company_id,
-        command.requester_id,
-        email,
-        phone,
-        address,
-        registry_code,
-        vat_number,
-      )
+      .update_company_profile(command.company_id, command.requester_id, profile)
       .await?;
 
     Ok(UpdateCompanyProfileResponse {

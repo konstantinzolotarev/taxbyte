@@ -29,14 +29,14 @@ impl TryFrom<CompanyRow> for Company {
     // Parse email
     let email = row
       .email
-      .map(|e| Email::new(e))
+      .map(Email::new)
       .transpose()
       .map_err(CompanyError::from)?;
 
     // Parse phone
     let phone = row
       .phone
-      .map(|p| PhoneNumber::new(p))
+      .map(PhoneNumber::new)
       .transpose()
       .map_err(CompanyError::Validation)?;
 
@@ -52,28 +52,28 @@ impl TryFrom<CompanyRow> for Company {
     // Parse registry_code (tax_id)
     let registry_code = row
       .tax_id
-      .map(|t| RegistryCode::new(t))
+      .map(RegistryCode::new)
       .transpose()
       .map_err(CompanyError::Validation)?;
 
     // Parse vat_number
     let vat_number = row
       .vat_number
-      .map(|v| VatNumber::new(v))
+      .map(VatNumber::new)
       .transpose()
       .map_err(CompanyError::Validation)?;
 
-    Ok(Company::from_db(
-      row.id,
-      row.name,
+    Ok(Company {
+      id: row.id,
+      name: row.name,
       email,
       phone,
       address,
       registry_code,
       vat_number,
-      row.created_at,
-      row.updated_at,
-    ))
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+    })
   }
 }
 

@@ -4,7 +4,7 @@ pub mod ports;
 pub mod services;
 pub mod value_objects;
 
-pub use entities::{ActiveCompany, Company, CompanyMember, CompanyRole};
+pub use entities::{ActiveCompany, Company, CompanyMember, CompanyProfileUpdate, CompanyRole};
 pub use errors::{CompanyError, ValidationError};
 pub use ports::{ActiveCompanyRepository, CompanyMemberRepository, CompanyRepository};
 pub use services::CompanyService;

@@ -87,7 +87,7 @@ pub async fn login_submit(
 
       let html = templates
         .render("partials/login_form.html.tera", &context)
-        .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
+        .map_err(actix_web::error::ErrorInternalServerError)?;
 
       Ok(
         HttpResponse::BadRequest()
@@ -138,7 +138,7 @@ pub async fn register_submit(
 
       let html = templates
         .render("partials/register_form.html.tera", &context)
-        .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
+        .map_err(actix_web::error::ErrorInternalServerError)?;
 
       Ok(
         HttpResponse::BadRequest()

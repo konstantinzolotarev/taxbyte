@@ -4,10 +4,10 @@ use uuid::Uuid;
 use crate::domain::auth::{ports::UserRepository, value_objects::Email};
 
 use super::{
-  entities::{ActiveCompany, Company, CompanyMember, CompanyRole},
+  entities::{ActiveCompany, Company, CompanyMember, CompanyProfileUpdate, CompanyRole},
   errors::CompanyError,
   ports::{ActiveCompanyRepository, CompanyMemberRepository, CompanyRepository},
-  value_objects::{CompanyAddress, CompanyName, PhoneNumber, RegistryCode, VatNumber},
+  value_objects::CompanyName,
 };
 
 /// Company service implementing core business logic
@@ -157,11 +157,7 @@ impl CompanyService {
     &self,
     company_id: Uuid,
     requester_id: Uuid,
-    email: Option<Email>,
-    phone: Option<PhoneNumber>,
-    address: Option<CompanyAddress>,
-    registry_code: Option<RegistryCode>,
-    vat_number: Option<VatNumber>,
+    profile: CompanyProfileUpdate,
   ) -> Result<Company, CompanyError> {
     // Verify requester is member
     let member = self.verify_membership(company_id, requester_id).await?;
@@ -179,7 +175,7 @@ impl CompanyService {
       .ok_or(CompanyError::NotFound)?;
 
     // Update profile
-    company.update_profile(email, phone, address, registry_code, vat_number);
+    company.update_profile(profile);
 
     // Save
     self.company_repo.update(company).await

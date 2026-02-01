@@ -7,8 +7,8 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use taxbyte::{
   adapters::http::{
-    AuthMiddleware, RequestIdMiddleware, TemplateEngine, configure_auth_routes,
-    configure_company_routes, configure_web_routes,
+    AuthMiddleware, RequestIdMiddleware, TemplateEngine, WebRouteDependencies,
+    configure_auth_routes, configure_company_routes, configure_web_routes,
   },
   application::auth::{
     GetCurrentUserUseCase, LoginUserUseCase, LogoutAllDevicesUseCase, LogoutUserUseCase,
@@ -85,7 +85,7 @@ async fn main() -> std::io::Result<()> {
           config.database.url
         ),
       ),
-      _ => std::io::Error::new(std::io::ErrorKind::Other, format!("Database error: {}", e)),
+      _ => std::io::Error::other(format!("Database error: {}", e)),
     }
   })?;
 
@@ -219,19 +219,21 @@ async fn main() -> std::io::Result<()> {
       .configure(|cfg| {
         configure_web_routes(
           cfg,
-          templates.clone(),
-          auth_service.clone(),
-          register_use_case.clone(),
-          login_use_case.clone(),
-          get_companies_use_case.clone(),
-          create_company_use_case.clone(),
-          set_active_use_case.clone(),
-          add_member_use_case.clone(),
-          remove_member_use_case.clone(),
-          get_details_use_case.clone(),
-          update_profile_use_case.clone(),
-          user_repo.clone(),
-          company_member_repo.clone(),
+          WebRouteDependencies {
+            templates: templates.clone(),
+            auth_service: auth_service.clone(),
+            register_use_case: register_use_case.clone(),
+            login_use_case: login_use_case.clone(),
+            get_companies_use_case: get_companies_use_case.clone(),
+            create_company_use_case: create_company_use_case.clone(),
+            set_active_use_case: set_active_use_case.clone(),
+            add_member_use_case: add_member_use_case.clone(),
+            remove_member_use_case: remove_member_use_case.clone(),
+            get_details_use_case: get_details_use_case.clone(),
+            update_profile_use_case: update_profile_use_case.clone(),
+            user_repo: user_repo.clone(),
+            member_repo: company_member_repo.clone(),
+          },
         )
       })
       // Configure API routes

@@ -1,3 +1,4 @@
+use std::convert::TryFrom;
 use std::sync::Arc;
 
 use uuid::Uuid;
@@ -26,7 +27,7 @@ impl AddCompanyMemberUseCase {
 
   pub async fn execute(&self, command: AddCompanyMemberCommand) -> Result<(), CompanyError> {
     let email = Email::new(command.member_email)?;
-    let role = CompanyRole::from_str(&command.role)?;
+    let role = CompanyRole::try_from(command.role.as_str())?;
 
     self
       .company_service

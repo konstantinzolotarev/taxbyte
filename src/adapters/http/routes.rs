@@ -24,6 +24,23 @@ use super::handlers::{company_web, pages, web_auth};
 use super::middleware::WebAuthMiddleware;
 use super::templates::TemplateEngine;
 
+/// Dependencies for web route configuration
+pub struct WebRouteDependencies {
+  pub templates: TemplateEngine,
+  pub auth_service: Arc<AuthService>,
+  pub register_use_case: Arc<RegisterUserUseCase>,
+  pub login_use_case: Arc<LoginUserUseCase>,
+  pub get_companies_use_case: Arc<GetUserCompaniesUseCase>,
+  pub create_company_use_case: Arc<CreateCompanyUseCase>,
+  pub set_active_use_case: Arc<SetActiveCompanyUseCase>,
+  pub add_member_use_case: Arc<AddCompanyMemberUseCase>,
+  pub remove_member_use_case: Arc<RemoveCompanyMemberUseCase>,
+  pub get_details_use_case: Arc<GetCompanyDetailsUseCase>,
+  pub update_profile_use_case: Arc<UpdateCompanyProfileUseCase>,
+  pub user_repo: Arc<dyn UserRepository>,
+  pub member_repo: Arc<dyn CompanyMemberRepository>,
+}
+
 /// Configure authentication routes
 ///
 /// Mounts all authentication-related endpoints under the provided scope.
@@ -98,24 +115,9 @@ pub fn configure_auth_routes(
 }
 
 /// Configure web UI routes
-pub fn configure_web_routes(
-  cfg: &mut web::ServiceConfig,
-  templates: TemplateEngine,
-  auth_service: Arc<AuthService>,
-  register_use_case: Arc<RegisterUserUseCase>,
-  login_use_case: Arc<LoginUserUseCase>,
-  get_companies_use_case: Arc<GetUserCompaniesUseCase>,
-  create_company_use_case: Arc<CreateCompanyUseCase>,
-  set_active_use_case: Arc<SetActiveCompanyUseCase>,
-  add_member_use_case: Arc<AddCompanyMemberUseCase>,
-  remove_member_use_case: Arc<RemoveCompanyMemberUseCase>,
-  get_details_use_case: Arc<GetCompanyDetailsUseCase>,
-  update_profile_use_case: Arc<UpdateCompanyProfileUseCase>,
-  user_repo: Arc<dyn UserRepository>,
-  member_repo: Arc<dyn CompanyMemberRepository>,
-) {
+pub fn configure_web_routes(cfg: &mut web::ServiceConfig, deps: WebRouteDependencies) {
   // Add template engine to app data
-  cfg.app_data(web::Data::new(templates.clone()));
+  cfg.app_data(web::Data::new(deps.templates.clone()));
 
   // Public routes (no authentication required)
   cfg
@@ -133,8 +135,8 @@ pub fn configure_web_routes(
   // Auth form submission routes
   cfg.service(
     web::scope("/auth")
-      .app_data(web::Data::new(register_use_case))
-      .app_data(web::Data::new(login_use_case))
+      .app_data(web::Data::new(deps.register_use_case))
+      .app_data(web::Data::new(deps.login_use_case))
       .route("/login", web::post().to(web_auth::login_submit))
       .route("/register", web::post().to(web_auth::register_submit))
       .route("/logout", web::post().to(web_auth::logout)),
@@ -143,27 +145,27 @@ pub fn configure_web_routes(
   // Protected routes (require authentication)
   cfg.service(
     web::scope("/dashboard")
-      .wrap(WebAuthMiddleware::new(auth_service.clone()))
-      .app_data(web::Data::new(templates.clone())) // Add templates to scope
-      .app_data(web::Data::new(get_companies_use_case.clone()))
-      .app_data(web::Data::new(get_details_use_case.clone()))
+      .wrap(WebAuthMiddleware::new(deps.auth_service.clone()))
+      .app_data(web::Data::new(deps.templates.clone())) // Add templates to scope
+      .app_data(web::Data::new(deps.get_companies_use_case.clone()))
+      .app_data(web::Data::new(deps.get_details_use_case.clone()))
       .route("", web::get().to(pages::dashboard_page)),
   );
 
   // Company web UI routes
   cfg.service(
     web::scope("/companies")
-      .wrap(WebAuthMiddleware::new(auth_service))
-      .app_data(web::Data::new(templates.clone())) // Add templates to scope
-      .app_data(web::Data::new(get_companies_use_case))
-      .app_data(web::Data::new(create_company_use_case))
-      .app_data(web::Data::new(set_active_use_case))
-      .app_data(web::Data::new(add_member_use_case))
-      .app_data(web::Data::new(remove_member_use_case))
-      .app_data(web::Data::new(get_details_use_case))
-      .app_data(web::Data::new(update_profile_use_case))
-      .app_data(web::Data::new(user_repo))
-      .app_data(web::Data::new(member_repo))
+      .wrap(WebAuthMiddleware::new(deps.auth_service))
+      .app_data(web::Data::new(deps.templates.clone())) // Add templates to scope
+      .app_data(web::Data::new(deps.get_companies_use_case))
+      .app_data(web::Data::new(deps.create_company_use_case))
+      .app_data(web::Data::new(deps.set_active_use_case))
+      .app_data(web::Data::new(deps.add_member_use_case))
+      .app_data(web::Data::new(deps.remove_member_use_case))
+      .app_data(web::Data::new(deps.get_details_use_case))
+      .app_data(web::Data::new(deps.update_profile_use_case))
+      .app_data(web::Data::new(deps.user_repo))
+      .app_data(web::Data::new(deps.member_repo))
       .route("", web::get().to(company_web::companies_page))
       .route(
         "/dropdown",

@@ -1,5 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use std::convert::TryFrom;
 use uuid::Uuid;
 
 use super::errors::CompanyError;
@@ -37,31 +38,6 @@ impl Company {
     }
   }
 
-  /// Reconstruct from database
-  pub fn from_db(
-    id: Uuid,
-    name: String,
-    email: Option<Email>,
-    phone: Option<PhoneNumber>,
-    address: Option<CompanyAddress>,
-    registry_code: Option<RegistryCode>,
-    vat_number: Option<VatNumber>,
-    created_at: DateTime<Utc>,
-    updated_at: DateTime<Utc>,
-  ) -> Self {
-    Self {
-      id,
-      name,
-      email,
-      phone,
-      address,
-      registry_code,
-      vat_number,
-      created_at,
-      updated_at,
-    }
-  }
-
   /// Update company name
   pub fn update_name(&mut self, name: String) {
     self.name = name;
@@ -69,21 +45,24 @@ impl Company {
   }
 
   /// Update company profile fields
-  pub fn update_profile(
-    &mut self,
-    email: Option<Email>,
-    phone: Option<PhoneNumber>,
-    address: Option<CompanyAddress>,
-    registry_code: Option<RegistryCode>,
-    vat_number: Option<VatNumber>,
-  ) {
-    self.email = email;
-    self.phone = phone;
-    self.address = address;
-    self.registry_code = registry_code;
-    self.vat_number = vat_number;
+  pub fn update_profile(&mut self, profile: CompanyProfileUpdate) {
+    self.email = profile.email;
+    self.phone = profile.phone;
+    self.address = profile.address;
+    self.registry_code = profile.registry_code;
+    self.vat_number = profile.vat_number;
     self.updated_at = Utc::now();
   }
+}
+
+/// Company profile fields for updates
+#[derive(Debug, Clone, Default)]
+pub struct CompanyProfileUpdate {
+  pub email: Option<Email>,
+  pub phone: Option<PhoneNumber>,
+  pub address: Option<CompanyAddress>,
+  pub registry_code: Option<RegistryCode>,
+  pub vat_number: Option<VatNumber>,
 }
 
 /// Company member representing user membership in a company
@@ -111,7 +90,7 @@ impl CompanyMember {
     role: String,
     joined_at: DateTime<Utc>,
   ) -> Result<Self, CompanyError> {
-    let role = CompanyRole::from_str(&role)?;
+    let role = CompanyRole::try_from(role.as_str())?;
     Ok(Self {
       company_id,
       user_id,
@@ -145,8 +124,12 @@ impl CompanyRole {
       CompanyRole::Member => "member",
     }
   }
+}
 
-  pub fn from_str(s: &str) -> Result<Self, CompanyError> {
+impl TryFrom<&str> for CompanyRole {
+  type Error = CompanyError;
+
+  fn try_from(s: &str) -> Result<Self, Self::Error> {
     match s.to_lowercase().as_str() {
       "owner" => Ok(CompanyRole::Owner),
       "admin" => Ok(CompanyRole::Admin),

@@ -17,7 +17,7 @@ pub async fn login_page(
 
   let html = templates
     .render("pages/login.html.tera", &context)
-    .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
+    .map_err(actix_web::error::ErrorInternalServerError)?;
 
   Ok(HttpResponse::Ok().content_type("text/html").body(html))
 }
@@ -31,7 +31,7 @@ pub async fn register_page(
 
   let html = templates
     .render("pages/register.html.tera", &context)
-    .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
+    .map_err(actix_web::error::ErrorInternalServerError)?;
 
   Ok(HttpResponse::Ok().content_type("text/html").body(html))
 }
@@ -109,7 +109,7 @@ pub async fn dashboard_page(
 
   let html = templates
     .render("pages/dashboard.html.tera", &context)
-    .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
+    .map_err(actix_web::error::ErrorInternalServerError)?;
 
   Ok(HttpResponse::Ok().content_type("text/html").body(html))
 }
