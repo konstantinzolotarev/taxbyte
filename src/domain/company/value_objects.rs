@@ -198,3 +198,185 @@ impl VatNumber {
     self.0
   }
 }
+
+/// Bank account name value object with validation
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BankAccountName(String);
+
+impl BankAccountName {
+  const MIN_LENGTH: usize = 1;
+  const MAX_LENGTH: usize = 100;
+
+  pub fn new(name: impl Into<String>) -> Result<Self, ValidationError> {
+    let name = name.into().trim().to_string();
+
+    if name.is_empty() {
+      return Err(ValidationError::BankAccountNameTooShort {
+        min: Self::MIN_LENGTH,
+      });
+    }
+
+    if name.len() > Self::MAX_LENGTH {
+      return Err(ValidationError::BankAccountNameTooLong {
+        max: Self::MAX_LENGTH,
+      });
+    }
+
+    Ok(Self(name))
+  }
+
+  pub fn as_str(&self) -> &str {
+    &self.0
+  }
+
+  pub fn into_inner(self) -> String {
+    self.0
+  }
+}
+
+/// IBAN (International Bank Account Number) value object with strict validation
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Iban(String);
+
+impl Iban {
+  const MIN_LENGTH: usize = 15;
+  const MAX_LENGTH: usize = 34;
+
+  pub fn new(iban: impl Into<String>) -> Result<Self, ValidationError> {
+    let iban = iban
+      .into()
+      .chars()
+      .filter(|c| !c.is_whitespace())
+      .collect::<String>()
+      .to_uppercase();
+
+    // Validate length
+    if iban.len() < Self::MIN_LENGTH || iban.len() > Self::MAX_LENGTH {
+      return Err(ValidationError::IbanInvalidLength {
+        min: Self::MIN_LENGTH,
+        max: Self::MAX_LENGTH,
+      });
+    }
+
+    // Validate format: 2 letters (country code) + 2 digits (check digits) + alphanumeric
+    if !Self::is_valid_format(&iban) {
+      return Err(ValidationError::IbanInvalidFormat);
+    }
+
+    // Validate checksum using mod-97 algorithm
+    if !Self::is_valid_checksum(&iban) {
+      return Err(ValidationError::IbanInvalidChecksum);
+    }
+
+    Ok(Self(iban))
+  }
+
+  fn is_valid_format(iban: &str) -> bool {
+    let chars: Vec<char> = iban.chars().collect();
+
+    if chars.len() < 4 {
+      return false;
+    }
+
+    // First 2 characters must be letters (country code)
+    if !chars[0].is_ascii_alphabetic() || !chars[1].is_ascii_alphabetic() {
+      return false;
+    }
+
+    // Next 2 characters must be digits (check digits)
+    if !chars[2].is_ascii_digit() || !chars[3].is_ascii_digit() {
+      return false;
+    }
+
+    // Remaining characters must be alphanumeric
+    chars[4..].iter().all(|c| c.is_ascii_alphanumeric())
+  }
+
+  fn is_valid_checksum(iban: &str) -> bool {
+    // Move first 4 characters to the end
+    let rearranged = format!("{}{}", &iban[4..], &iban[..4]);
+
+    // Convert letters to numbers (A=10, B=11, ..., Z=35)
+    let numeric = rearranged
+      .chars()
+      .map(|c| {
+        if c.is_ascii_digit() {
+          c.to_string()
+        } else {
+          // A=10, B=11, ..., Z=35
+          ((c as u32) - ('A' as u32) + 10).to_string()
+        }
+      })
+      .collect::<String>();
+
+    // Calculate mod 97
+    Self::mod97(&numeric) == 1
+  }
+
+  // Calculate mod 97 for large numbers (as strings)
+  fn mod97(number: &str) -> u32 {
+    let mut remainder = 0u32;
+
+    for digit in number.chars() {
+      let digit_value = digit.to_digit(10).unwrap();
+      remainder = (remainder * 10 + digit_value) % 97;
+    }
+
+    remainder
+  }
+
+  pub fn as_str(&self) -> &str {
+    &self.0
+  }
+
+  pub fn into_inner(self) -> String {
+    self.0
+  }
+
+  /// Format IBAN with spaces every 4 characters for display
+  pub fn formatted(&self) -> String {
+    self
+      .0
+      .chars()
+      .enumerate()
+      .fold(String::new(), |mut acc, (i, c)| {
+        if i > 0 && i % 4 == 0 {
+          acc.push(' ');
+        }
+        acc.push(c);
+        acc
+      })
+  }
+}
+
+/// Bank details value object (optional textarea)
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BankDetails(String);
+
+impl BankDetails {
+  const MAX_LENGTH: usize = 1000;
+
+  pub fn new(details: impl Into<String>) -> Result<Self, ValidationError> {
+    let details = details.into().trim().to_string();
+
+    if details.len() > Self::MAX_LENGTH {
+      return Err(ValidationError::BankDetailsTooLong {
+        max: Self::MAX_LENGTH,
+      });
+    }
+
+    Ok(Self(details))
+  }
+
+  pub fn as_str(&self) -> &str {
+    &self.0
+  }
+
+  pub fn into_inner(self) -> String {
+    self.0
+  }
+
+  pub fn is_empty(&self) -> bool {
+    self.0.is_empty()
+  }
+}

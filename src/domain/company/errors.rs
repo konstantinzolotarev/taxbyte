@@ -23,6 +23,15 @@ pub enum CompanyError {
   #[error("User not found")]
   UserNotFound,
 
+  #[error("Bank account not found")]
+  BankAccountNotFound,
+
+  #[error("Cannot archive the active bank account")]
+  CannotArchiveActiveBankAccount,
+
+  #[error("A bank account with this IBAN already exists for this company")]
+  DuplicateIban,
+
   #[error("Repository error: {0}")]
   Repository(#[from] RepositoryError),
 
@@ -58,13 +67,41 @@ pub enum ValidationError {
 
   #[error("VAT number must be at most {max} characters")]
   VatNumberTooLong { max: usize },
+
+  #[error("Bank account name must be at least {min} characters")]
+  BankAccountNameTooShort { min: usize },
+
+  #[error("Bank account name must be at most {max} characters")]
+  BankAccountNameTooLong { max: usize },
+
+  #[error("IBAN must be between {min} and {max} characters")]
+  IbanInvalidLength { min: usize, max: usize },
+
+  #[error("IBAN has invalid format (must start with 2 letters + 2 digits)")]
+  IbanInvalidFormat,
+
+  #[error("IBAN checksum validation failed")]
+  IbanInvalidChecksum,
+
+  #[error("Bank details must be at most {max} characters")]
+  BankDetailsTooLong { max: usize },
 }
 
 impl From<CompanyError> for RepositoryError {
   fn from(error: CompanyError) -> Self {
     match error {
       CompanyError::Repository(repo_err) => repo_err,
-      _ => RepositoryError::QueryFailed(error.to_string()),
+      CompanyError::NotFound
+      | CompanyError::NotMember
+      | CompanyError::AlreadyMember
+      | CompanyError::InsufficientPermissions
+      | CompanyError::CannotRemoveLastOwner
+      | CompanyError::UserNotFound
+      | CompanyError::BankAccountNotFound
+      | CompanyError::CannotArchiveActiveBankAccount
+      | CompanyError::DuplicateIban
+      | CompanyError::Validation(_)
+      | CompanyError::Auth(_) => RepositoryError::QueryFailed(error.to_string()),
     }
   }
 }

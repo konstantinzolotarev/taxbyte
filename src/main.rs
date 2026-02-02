@@ -8,23 +8,26 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use taxbyte::{
   adapters::http::{
     AuthMiddleware, RequestIdMiddleware, TemplateEngine, WebRouteDependencies,
-    configure_auth_routes, configure_company_routes, configure_web_routes,
+    configure_auth_routes, configure_bank_account_routes, configure_company_routes,
+    configure_web_routes,
   },
   application::auth::{
     GetCurrentUserUseCase, LoginUserUseCase, LogoutAllDevicesUseCase, LogoutUserUseCase,
     RegisterUserUseCase,
   },
   application::company::{
-    AddCompanyMemberUseCase, CreateCompanyUseCase, GetCompanyDetailsUseCase,
-    GetUserCompaniesUseCase, RemoveCompanyMemberUseCase, SetActiveCompanyUseCase,
-    UpdateCompanyProfileUseCase,
+    AddCompanyMemberUseCase, ArchiveBankAccountUseCase, CreateBankAccountUseCase,
+    CreateCompanyUseCase, GetBankAccountsUseCase, GetCompanyDetailsUseCase,
+    GetUserCompaniesUseCase, RemoveCompanyMemberUseCase, SetActiveBankAccountUseCase,
+    SetActiveCompanyUseCase, UpdateBankAccountUseCase, UpdateCompanyProfileUseCase,
   },
   domain::auth::services::AuthService,
   domain::company::services::CompanyService,
   infrastructure::{
     config::Config,
     persistence::postgres::{
-      PostgresActiveCompanyRepository, PostgresCompanyMemberRepository, PostgresCompanyRepository,
+      PostgresActiveBankAccountRepository, PostgresActiveCompanyRepository,
+      PostgresBankAccountRepository, PostgresCompanyMemberRepository, PostgresCompanyRepository,
       PostgresLoginAttemptRepository, PostgresSessionRepository, PostgresUserRepository,
     },
     security::{Argon2PasswordHasher, SecureTokenGenerator},
@@ -153,6 +156,9 @@ async fn main() -> std::io::Result<()> {
   let company_repo = Arc::new(PostgresCompanyRepository::new(db_pool.clone()));
   let company_member_repo = Arc::new(PostgresCompanyMemberRepository::new(db_pool.clone()));
   let active_company_repo = Arc::new(PostgresActiveCompanyRepository::new(db_pool.clone()));
+  let bank_account_repo = Arc::new(PostgresBankAccountRepository::new(db_pool.clone()));
+  let active_bank_account_repo =
+    Arc::new(PostgresActiveBankAccountRepository::new(db_pool.clone()));
 
   // Initialize security services
   let password_hasher =
@@ -174,6 +180,8 @@ async fn main() -> std::io::Result<()> {
     company_member_repo.clone(),
     active_company_repo.clone(),
     user_repo.clone(),
+    bank_account_repo.clone(),
+    active_bank_account_repo.clone(),
   ));
 
   // Initialize use cases
@@ -198,6 +206,17 @@ async fn main() -> std::io::Result<()> {
     company_member_repo.clone(),
   ));
   let update_profile_use_case = Arc::new(UpdateCompanyProfileUseCase::new(company_service.clone()));
+
+  // Initialize bank account use cases
+  let create_bank_account_use_case =
+    Arc::new(CreateBankAccountUseCase::new(company_service.clone()));
+  let get_bank_accounts_use_case = Arc::new(GetBankAccountsUseCase::new(company_service.clone()));
+  let update_bank_account_use_case =
+    Arc::new(UpdateBankAccountUseCase::new(company_service.clone()));
+  let archive_bank_account_use_case =
+    Arc::new(ArchiveBankAccountUseCase::new(company_service.clone()));
+  let set_active_bank_account_use_case =
+    Arc::new(SetActiveBankAccountUseCase::new(company_service.clone()));
 
   // Initialize template engine
   let templates = TemplateEngine::new().expect("Failed to initialize template engine");
@@ -231,8 +250,14 @@ async fn main() -> std::io::Result<()> {
             remove_member_use_case: remove_member_use_case.clone(),
             get_details_use_case: get_details_use_case.clone(),
             update_profile_use_case: update_profile_use_case.clone(),
+            create_bank_account_use_case: create_bank_account_use_case.clone(),
+            get_bank_accounts_use_case: get_bank_accounts_use_case.clone(),
+            update_bank_account_use_case: update_bank_account_use_case.clone(),
+            archive_bank_account_use_case: archive_bank_account_use_case.clone(),
+            set_active_bank_account_use_case: set_active_bank_account_use_case.clone(),
             user_repo: user_repo.clone(),
             member_repo: company_member_repo.clone(),
+            active_bank_account_repo: active_bank_account_repo.clone(),
           },
         )
       })
@@ -260,7 +285,17 @@ async fn main() -> std::io::Result<()> {
               add_member_use_case.clone(),
               remove_member_use_case.clone(),
             )
-          }),
+          })
+          .service(web::scope("/{company_id}/bank-accounts").configure(|cfg| {
+            configure_bank_account_routes(
+              cfg,
+              create_bank_account_use_case.clone(),
+              get_bank_accounts_use_case.clone(),
+              update_bank_account_use_case.clone(),
+              archive_bank_account_use_case.clone(),
+              set_active_bank_account_use_case.clone(),
+            )
+          })),
       )
       // Static files
       .service(fs::Files::new("/static", "./static"))

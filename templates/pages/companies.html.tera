@@ -66,6 +66,12 @@
               </button>
             {% endif %}
             <a
+              href="/companies/{{ company.company_id }}/bank-accounts"
+              class="{% if company.is_active %}flex-1{% else %}flex-shrink-0{% endif %} px-4 py-2 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 text-sm font-medium rounded-lg transition-colors text-center"
+            >
+              Bank Accounts
+            </a>
+            <a
               href="/companies/{{ company.company_id }}/members"
               class="{% if company.is_active %}flex-1{% else %}flex-shrink-0{% endif %} px-4 py-2 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 text-sm font-medium rounded-lg transition-colors text-center"
             >

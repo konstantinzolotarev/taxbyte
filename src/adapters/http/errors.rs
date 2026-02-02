@@ -191,6 +191,15 @@ impl From<CompanyError> for ApiError {
         ApiError::Validation("Cannot remove the last owner".to_string())
       }
       CompanyError::UserNotFound => ApiError::Auth(AuthErrorKind::UserNotFound),
+      CompanyError::BankAccountNotFound => {
+        ApiError::Validation("Bank account not found".to_string())
+      }
+      CompanyError::CannotArchiveActiveBankAccount => {
+        ApiError::Validation("Cannot archive the active bank account".to_string())
+      }
+      CompanyError::DuplicateIban => {
+        ApiError::Validation("A bank account with this IBAN already exists".to_string())
+      }
       CompanyError::Repository(e) => ApiError::Internal(format!("Repository error: {}", e)),
       CompanyError::Validation(e) => ApiError::Validation(e.to_string()),
       CompanyError::Auth(e) => ApiError::from(e),

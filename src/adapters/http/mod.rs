@@ -18,6 +18,7 @@ pub use middleware::{
   AuthMiddleware, AuthUser, RequestId, RequestIdExt, RequestIdMiddleware, WebAuthMiddleware,
 };
 pub use routes::{
-  WebRouteDependencies, configure_auth_routes, configure_company_routes, configure_web_routes,
+  WebRouteDependencies, configure_auth_routes, configure_bank_account_routes,
+  configure_company_routes, configure_web_routes,
 };
 pub use templates::TemplateEngine;

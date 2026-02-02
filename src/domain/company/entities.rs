@@ -4,7 +4,9 @@ use std::convert::TryFrom;
 use uuid::Uuid;
 
 use super::errors::CompanyError;
-use super::value_objects::{CompanyAddress, PhoneNumber, RegistryCode, VatNumber};
+use super::value_objects::{
+  BankAccountName, BankDetails, CompanyAddress, Iban, PhoneNumber, RegistryCode, VatNumber,
+};
 use crate::domain::auth::value_objects::Email;
 
 /// Company entity representing a business organization
@@ -162,6 +164,104 @@ impl ActiveCompany {
     Self {
       user_id,
       company_id,
+      set_at,
+    }
+  }
+}
+
+/// Bank account entity representing a company's bank account
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BankAccount {
+  pub id: Uuid,
+  pub company_id: Uuid,
+  pub name: BankAccountName,
+  pub iban: Iban,
+  pub bank_details: Option<BankDetails>,
+  pub created_at: DateTime<Utc>,
+  pub updated_at: DateTime<Utc>,
+  pub archived_at: Option<DateTime<Utc>>,
+}
+
+impl BankAccount {
+  pub fn new(
+    company_id: Uuid,
+    name: BankAccountName,
+    iban: Iban,
+    bank_details: Option<BankDetails>,
+  ) -> Self {
+    let now = Utc::now();
+    Self {
+      id: Uuid::new_v4(),
+      company_id,
+      name,
+      iban,
+      bank_details,
+      created_at: now,
+      updated_at: now,
+      archived_at: None,
+    }
+  }
+
+  #[allow(clippy::too_many_arguments)]
+  pub fn from_db(
+    id: Uuid,
+    company_id: Uuid,
+    name: BankAccountName,
+    iban: Iban,
+    bank_details: Option<BankDetails>,
+    created_at: DateTime<Utc>,
+    updated_at: DateTime<Utc>,
+    archived_at: Option<DateTime<Utc>>,
+  ) -> Self {
+    Self {
+      id,
+      company_id,
+      name,
+      iban,
+      bank_details,
+      created_at,
+      updated_at,
+      archived_at,
+    }
+  }
+
+  pub fn update(&mut self, name: BankAccountName, iban: Iban, bank_details: Option<BankDetails>) {
+    self.name = name;
+    self.iban = iban;
+    self.bank_details = bank_details;
+    self.updated_at = Utc::now();
+  }
+
+  pub fn archive(&mut self) {
+    self.archived_at = Some(Utc::now());
+  }
+
+  pub fn is_archived(&self) -> bool {
+    self.archived_at.is_some()
+  }
+}
+
+/// Active bank account for a company
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ActiveBankAccount {
+  pub company_id: Uuid,
+  pub bank_account_id: Uuid,
+  pub set_at: DateTime<Utc>,
+}
+
+impl ActiveBankAccount {
+  pub fn new(company_id: Uuid, bank_account_id: Uuid) -> Self {
+    Self {
+      company_id,
+      bank_account_id,
+      set_at: Utc::now(),
+    }
+  }
+
+  pub fn from_db(company_id: Uuid, bank_account_id: Uuid, set_at: DateTime<Utc>) -> Self {
+    Self {
+      company_id,
+      bank_account_id,
       set_at,
     }
   }

@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use uuid::Uuid;
 
 use super::{
-  entities::{ActiveCompany, Company, CompanyMember},
+  entities::{ActiveBankAccount, ActiveCompany, BankAccount, Company, CompanyMember},
   errors::CompanyError,
 };
 
@@ -32,4 +32,29 @@ pub trait ActiveCompanyRepository: Send + Sync {
   async fn set_active(&self, active: ActiveCompany) -> Result<(), CompanyError>;
   async fn get_active(&self, user_id: Uuid) -> Result<Option<Uuid>, CompanyError>;
   async fn clear_active(&self, user_id: Uuid) -> Result<(), CompanyError>;
+}
+
+#[async_trait]
+pub trait BankAccountRepository: Send + Sync {
+  async fn create(&self, account: BankAccount) -> Result<BankAccount, CompanyError>;
+  async fn find_by_id(&self, id: Uuid) -> Result<Option<BankAccount>, CompanyError>;
+  async fn find_by_company_id(
+    &self,
+    company_id: Uuid,
+    include_archived: bool,
+  ) -> Result<Vec<BankAccount>, CompanyError>;
+  async fn find_by_iban(
+    &self,
+    company_id: Uuid,
+    iban: &str,
+  ) -> Result<Option<BankAccount>, CompanyError>;
+  async fn update(&self, account: BankAccount) -> Result<BankAccount, CompanyError>;
+  async fn archive(&self, id: Uuid) -> Result<(), CompanyError>;
+}
+
+#[async_trait]
+pub trait ActiveBankAccountRepository: Send + Sync {
+  async fn set_active(&self, active: ActiveBankAccount) -> Result<(), CompanyError>;
+  async fn get_active(&self, company_id: Uuid) -> Result<Option<Uuid>, CompanyError>;
+  async fn clear_active(&self, company_id: Uuid) -> Result<(), CompanyError>;
 }

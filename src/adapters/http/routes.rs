@@ -6,12 +6,14 @@ use crate::application::auth::{
   RegisterUserUseCase,
 };
 use crate::application::company::{
-  AddCompanyMemberUseCase, CreateCompanyUseCase, GetCompanyDetailsUseCase, GetUserCompaniesUseCase,
-  RemoveCompanyMemberUseCase, SetActiveCompanyUseCase, UpdateCompanyProfileUseCase,
+  AddCompanyMemberUseCase, ArchiveBankAccountUseCase, CreateBankAccountUseCase,
+  CreateCompanyUseCase, GetBankAccountsUseCase, GetCompanyDetailsUseCase, GetUserCompaniesUseCase,
+  RemoveCompanyMemberUseCase, SetActiveBankAccountUseCase, SetActiveCompanyUseCase,
+  UpdateBankAccountUseCase, UpdateCompanyProfileUseCase,
 };
 use crate::domain::auth::ports::UserRepository;
 use crate::domain::auth::services::AuthService;
-use crate::domain::company::ports::CompanyMemberRepository;
+use crate::domain::company::ports::{ActiveBankAccountRepository, CompanyMemberRepository};
 
 use super::handlers::auth::{
   get_current_user_handler, login_handler, logout_all_handler, logout_handler, register_handler,
@@ -20,7 +22,7 @@ use super::handlers::company::{
   add_company_member_handler, create_company_handler, get_user_companies_handler,
   remove_company_member_handler, set_active_company_handler,
 };
-use super::handlers::{company_web, pages, web_auth};
+use super::handlers::{bank_accounts, bank_accounts_web, company_web, pages, web_auth};
 use super::middleware::WebAuthMiddleware;
 use super::templates::TemplateEngine;
 
@@ -37,8 +39,14 @@ pub struct WebRouteDependencies {
   pub remove_member_use_case: Arc<RemoveCompanyMemberUseCase>,
   pub get_details_use_case: Arc<GetCompanyDetailsUseCase>,
   pub update_profile_use_case: Arc<UpdateCompanyProfileUseCase>,
+  pub create_bank_account_use_case: Arc<CreateBankAccountUseCase>,
+  pub get_bank_accounts_use_case: Arc<GetBankAccountsUseCase>,
+  pub update_bank_account_use_case: Arc<UpdateBankAccountUseCase>,
+  pub archive_bank_account_use_case: Arc<ArchiveBankAccountUseCase>,
+  pub set_active_bank_account_use_case: Arc<SetActiveBankAccountUseCase>,
   pub user_repo: Arc<dyn UserRepository>,
   pub member_repo: Arc<dyn CompanyMemberRepository>,
+  pub active_bank_account_repo: Arc<dyn ActiveBankAccountRepository>,
 }
 
 /// Configure authentication routes
@@ -198,6 +206,33 @@ pub fn configure_web_routes(cfg: &mut web::ServiceConfig, deps: WebRouteDependen
       .route(
         "/{company_id}/members/{user_id}",
         web::delete().to(company_web::remove_member_handler),
+      )
+      // Bank account routes
+      .app_data(web::Data::new(deps.create_bank_account_use_case))
+      .app_data(web::Data::new(deps.get_bank_accounts_use_case))
+      .app_data(web::Data::new(deps.update_bank_account_use_case))
+      .app_data(web::Data::new(deps.archive_bank_account_use_case))
+      .app_data(web::Data::new(deps.set_active_bank_account_use_case))
+      .app_data(web::Data::new(deps.active_bank_account_repo))
+      .route(
+        "/{company_id}/bank-accounts",
+        web::get().to(bank_accounts_web::bank_accounts_page),
+      )
+      .route(
+        "/{company_id}/bank-accounts/create",
+        web::post().to(bank_accounts_web::create_bank_account_submit),
+      )
+      .route(
+        "/{company_id}/bank-accounts/{account_id}/update",
+        web::post().to(bank_accounts_web::update_bank_account_submit),
+      )
+      .route(
+        "/{company_id}/bank-accounts/{account_id}/archive",
+        web::post().to(bank_accounts_web::archive_bank_account_handler),
+      )
+      .route(
+        "/{company_id}/bank-accounts/{account_id}/set-active",
+        web::post().to(bank_accounts_web::set_active_bank_account_handler),
       ),
   );
 }
@@ -238,6 +273,43 @@ pub fn configure_company_routes(
     .route(
       "/{company_id}/members/{user_id}",
       web::delete().to(remove_company_member_handler),
+    );
+}
+
+/// Configure bank account routes (REST API)
+///
+/// Mounts all bank account-related endpoints under the provided scope.
+/// All routes are prefixed with the scope path (e.g., /api/v1/companies/:company_id/bank-accounts).
+pub fn configure_bank_account_routes(
+  cfg: &mut web::ServiceConfig,
+  create_use_case: Arc<CreateBankAccountUseCase>,
+  get_use_case: Arc<GetBankAccountsUseCase>,
+  update_use_case: Arc<UpdateBankAccountUseCase>,
+  archive_use_case: Arc<ArchiveBankAccountUseCase>,
+  set_active_use_case: Arc<SetActiveBankAccountUseCase>,
+) {
+  cfg
+    .app_data(web::Data::new(create_use_case))
+    .app_data(web::Data::new(get_use_case))
+    .app_data(web::Data::new(update_use_case))
+    .app_data(web::Data::new(archive_use_case))
+    .app_data(web::Data::new(set_active_use_case))
+    .route(
+      "",
+      web::post().to(bank_accounts::create_bank_account_handler),
+    )
+    .route("", web::get().to(bank_accounts::get_bank_accounts_handler))
+    .route(
+      "/{account_id}",
+      web::put().to(bank_accounts::update_bank_account_handler),
+    )
+    .route(
+      "/{account_id}",
+      web::delete().to(bank_accounts::archive_bank_account_handler),
+    )
+    .route(
+      "/active",
+      web::post().to(bank_accounts::set_active_bank_account_handler),
     );
 }
 

@@ -1,0 +1,80 @@
+<form
+  hx-post="/companies/{{ company_id }}/bank-accounts/create"
+  hx-target="#createBankAccountFormContainer"
+  hx-swap="outerHTML"
+  class="p-6"
+>
+  {% if error %}
+    <div class="mb-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 rounded-lg">
+      {{ error }}
+    </div>
+  {% endif %}
+
+  <div class="space-y-4">
+    <!-- Name -->
+    <div>
+      <label for="name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+        Account Name <span class="text-red-500">*</span>
+      </label>
+      <input
+        type="text"
+        id="name"
+        name="name"
+        value="{{ name | default(value='') }}"
+        required
+        maxlength="100"
+        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+        placeholder="e.g., Main Business Account"
+      >
+    </div>
+
+    <!-- IBAN -->
+    <div>
+      <label for="iban" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+        IBAN <span class="text-red-500">*</span>
+      </label>
+      <input
+        type="text"
+        id="iban"
+        name="iban"
+        value="{{ iban | default(value='') }}"
+        required
+        maxlength="34"
+        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent font-mono"
+        placeholder="DE89 3704 0044 0532 0130 00"
+      >
+      <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Spaces will be removed automatically</p>
+    </div>
+
+    <!-- Bank Details -->
+    <div>
+      <label for="bank_details" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+        Additional Details (Optional)
+      </label>
+      <textarea
+        id="bank_details"
+        name="bank_details"
+        maxlength="1000"
+        rows="3"
+        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+        placeholder="e.g., Bank name, SWIFT code, branch address..."
+      >{{ bank_details | default(value='') }}</textarea>
+    </div>
+  </div>
+
+  <div class="mt-6 flex gap-3">
+    <button
+      type="submit"
+      class="flex-1 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white font-medium rounded-lg transition-colors"
+    >
+      Add Account
+    </button>
+    <button
+      type="button"
+      onclick="closeCreateBankAccountModal()"
+      class="px-4 py-2 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 font-medium rounded-lg transition-colors"
+    >
+      Cancel
+    </button>
+  </div>
+</form>

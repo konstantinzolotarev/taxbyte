@@ -4,10 +4,16 @@ use uuid::Uuid;
 use crate::domain::auth::{ports::UserRepository, value_objects::Email};
 
 use super::{
-  entities::{ActiveCompany, Company, CompanyMember, CompanyProfileUpdate, CompanyRole},
+  entities::{
+    ActiveBankAccount, ActiveCompany, BankAccount, Company, CompanyMember, CompanyProfileUpdate,
+    CompanyRole,
+  },
   errors::CompanyError,
-  ports::{ActiveCompanyRepository, CompanyMemberRepository, CompanyRepository},
-  value_objects::CompanyName,
+  ports::{
+    ActiveBankAccountRepository, ActiveCompanyRepository, BankAccountRepository,
+    CompanyMemberRepository, CompanyRepository,
+  },
+  value_objects::{BankAccountName, BankDetails, CompanyName, Iban},
 };
 
 /// Company service implementing core business logic
@@ -16,6 +22,8 @@ pub struct CompanyService {
   member_repo: Arc<dyn CompanyMemberRepository>,
   active_repo: Arc<dyn ActiveCompanyRepository>,
   user_repo: Arc<dyn UserRepository>,
+  bank_account_repo: Arc<dyn BankAccountRepository>,
+  active_bank_account_repo: Arc<dyn ActiveBankAccountRepository>,
 }
 
 impl CompanyService {
@@ -24,12 +32,16 @@ impl CompanyService {
     member_repo: Arc<dyn CompanyMemberRepository>,
     active_repo: Arc<dyn ActiveCompanyRepository>,
     user_repo: Arc<dyn UserRepository>,
+    bank_account_repo: Arc<dyn BankAccountRepository>,
+    active_bank_account_repo: Arc<dyn ActiveBankAccountRepository>,
   ) -> Self {
     Self {
       company_repo,
       member_repo,
       active_repo,
       user_repo,
+      bank_account_repo,
+      active_bank_account_repo,
     }
   }
 
@@ -192,5 +204,167 @@ impl CompanyService {
       .find_member(company_id, user_id)
       .await?
       .ok_or(CompanyError::NotMember)
+  }
+
+  // ===== Bank Account Management =====
+
+  /// Create bank account (requires owner/admin permission)
+  pub async fn create_bank_account(
+    &self,
+    company_id: Uuid,
+    requester_id: Uuid,
+    name: BankAccountName,
+    iban: Iban,
+    bank_details: Option<BankDetails>,
+  ) -> Result<BankAccount, CompanyError> {
+    // Verify requester can manage members (owner/admin)
+    let member = self.verify_membership(company_id, requester_id).await?;
+    if !member.can_manage_members() {
+      return Err(CompanyError::InsufficientPermissions);
+    }
+
+    // Check for duplicate IBAN
+    if self
+      .bank_account_repo
+      .find_by_iban(company_id, iban.as_str())
+      .await?
+      .is_some()
+    {
+      return Err(CompanyError::DuplicateIban);
+    }
+
+    // Create account
+    let account = BankAccount::new(company_id, name, iban, bank_details);
+    self.bank_account_repo.create(account).await
+  }
+
+  /// Update bank account (requires owner/admin permission)
+  pub async fn update_bank_account(
+    &self,
+    company_id: Uuid,
+    requester_id: Uuid,
+    account_id: Uuid,
+    name: BankAccountName,
+    iban: Iban,
+    bank_details: Option<BankDetails>,
+  ) -> Result<BankAccount, CompanyError> {
+    // Verify requester can manage members (owner/admin)
+    let member = self.verify_membership(company_id, requester_id).await?;
+    if !member.can_manage_members() {
+      return Err(CompanyError::InsufficientPermissions);
+    }
+
+    // Get existing account
+    let mut account = self
+      .bank_account_repo
+      .find_by_id(account_id)
+      .await?
+      .ok_or(CompanyError::BankAccountNotFound)?;
+
+    // Verify account belongs to company
+    if account.company_id != company_id {
+      return Err(CompanyError::BankAccountNotFound);
+    }
+
+    // Check for duplicate IBAN (excluding current account)
+    if let Some(existing) = self
+      .bank_account_repo
+      .find_by_iban(company_id, iban.as_str())
+      .await?
+    {
+      if existing.id != account_id {
+        return Err(CompanyError::DuplicateIban);
+      }
+    }
+
+    // Update account
+    account.update(name, iban, bank_details);
+    self.bank_account_repo.update(account).await
+  }
+
+  /// Archive bank account (requires owner/admin, cannot archive active)
+  pub async fn archive_bank_account(
+    &self,
+    company_id: Uuid,
+    requester_id: Uuid,
+    account_id: Uuid,
+  ) -> Result<(), CompanyError> {
+    // Verify requester can manage members (owner/admin)
+    let member = self.verify_membership(company_id, requester_id).await?;
+    if !member.can_manage_members() {
+      return Err(CompanyError::InsufficientPermissions);
+    }
+
+    // Get account
+    let mut account = self
+      .bank_account_repo
+      .find_by_id(account_id)
+      .await?
+      .ok_or(CompanyError::BankAccountNotFound)?;
+
+    // Verify account belongs to company
+    if account.company_id != company_id {
+      return Err(CompanyError::BankAccountNotFound);
+    }
+
+    // Check if it's the active account
+    if let Some(active_id) = self.active_bank_account_repo.get_active(company_id).await? {
+      if active_id == account_id {
+        return Err(CompanyError::CannotArchiveActiveBankAccount);
+      }
+    }
+
+    // Archive
+    account.archive();
+    self.bank_account_repo.update(account).await?;
+    Ok(())
+  }
+
+  /// Set active bank account (requires membership)
+  pub async fn set_active_bank_account(
+    &self,
+    company_id: Uuid,
+    requester_id: Uuid,
+    account_id: Uuid,
+  ) -> Result<(), CompanyError> {
+    // Verify membership
+    self.verify_membership(company_id, requester_id).await?;
+
+    // Verify account exists and belongs to company
+    let account = self
+      .bank_account_repo
+      .find_by_id(account_id)
+      .await?
+      .ok_or(CompanyError::BankAccountNotFound)?;
+
+    if account.company_id != company_id {
+      return Err(CompanyError::BankAccountNotFound);
+    }
+
+    // Cannot set archived account as active
+    if account.is_archived() {
+      return Err(CompanyError::BankAccountNotFound);
+    }
+
+    // Set as active
+    let active = ActiveBankAccount::new(company_id, account_id);
+    self.active_bank_account_repo.set_active(active).await
+  }
+
+  /// Get company bank accounts (all members can view)
+  pub async fn get_company_bank_accounts(
+    &self,
+    company_id: Uuid,
+    requester_id: Uuid,
+    include_archived: bool,
+  ) -> Result<Vec<BankAccount>, CompanyError> {
+    // Verify membership
+    self.verify_membership(company_id, requester_id).await?;
+
+    // Get accounts
+    self
+      .bank_account_repo
+      .find_by_company_id(company_id, include_archived)
+      .await
   }
 }
