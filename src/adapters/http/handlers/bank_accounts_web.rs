@@ -65,6 +65,7 @@ pub async fn bank_accounts_page(
     .flatten();
 
   let mut context = tera::Context::new();
+  context.insert("user", &user);
   context.insert("company_id", &company_id.to_string());
   context.insert("accounts", &response.accounts);
   context.insert("active_account_id", &active_account_id);

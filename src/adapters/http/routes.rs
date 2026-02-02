@@ -11,6 +11,11 @@ use crate::application::company::{
   RemoveCompanyMemberUseCase, SetActiveBankAccountUseCase, SetActiveCompanyUseCase,
   UpdateBankAccountUseCase, UpdateCompanyProfileUseCase,
 };
+use crate::application::invoice::{
+  ArchiveCustomerUseCase, ArchiveInvoiceUseCase, ChangeInvoiceStatusUseCase, CreateCustomerUseCase,
+  CreateInvoiceUseCase, GetInvoiceDetailsUseCase, ListCustomersUseCase, ListInvoicesUseCase,
+  UpdateCustomerUseCase,
+};
 use crate::domain::auth::ports::UserRepository;
 use crate::domain::auth::services::AuthService;
 use crate::domain::company::ports::{ActiveBankAccountRepository, CompanyMemberRepository};
@@ -22,7 +27,9 @@ use super::handlers::company::{
   add_company_member_handler, create_company_handler, get_user_companies_handler,
   remove_company_member_handler, set_active_company_handler,
 };
-use super::handlers::{bank_accounts, bank_accounts_web, company_web, pages, web_auth};
+use super::handlers::{
+  bank_accounts, bank_accounts_web, company_web, customers_web, invoices_web, pages, web_auth,
+};
 use super::middleware::WebAuthMiddleware;
 use super::templates::TemplateEngine;
 
@@ -47,6 +54,17 @@ pub struct WebRouteDependencies {
   pub user_repo: Arc<dyn UserRepository>,
   pub member_repo: Arc<dyn CompanyMemberRepository>,
   pub active_bank_account_repo: Arc<dyn ActiveBankAccountRepository>,
+  // Customer use cases
+  pub create_customer_use_case: Arc<CreateCustomerUseCase>,
+  pub list_customers_use_case: Arc<ListCustomersUseCase>,
+  pub update_customer_use_case: Arc<UpdateCustomerUseCase>,
+  pub archive_customer_use_case: Arc<ArchiveCustomerUseCase>,
+  // Invoice use cases
+  pub create_invoice_use_case: Arc<CreateInvoiceUseCase>,
+  pub list_invoices_use_case: Arc<ListInvoicesUseCase>,
+  pub get_invoice_details_use_case: Arc<GetInvoiceDetailsUseCase>,
+  pub change_invoice_status_use_case: Arc<ChangeInvoiceStatusUseCase>,
+  pub archive_invoice_use_case: Arc<ArchiveInvoiceUseCase>,
 }
 
 /// Configure authentication routes
@@ -163,9 +181,9 @@ pub fn configure_web_routes(cfg: &mut web::ServiceConfig, deps: WebRouteDependen
   // Company web UI routes
   cfg.service(
     web::scope("/companies")
-      .wrap(WebAuthMiddleware::new(deps.auth_service))
+      .wrap(WebAuthMiddleware::new(deps.auth_service.clone()))
       .app_data(web::Data::new(deps.templates.clone())) // Add templates to scope
-      .app_data(web::Data::new(deps.get_companies_use_case))
+      .app_data(web::Data::new(deps.get_companies_use_case.clone()))
       .app_data(web::Data::new(deps.create_company_use_case))
       .app_data(web::Data::new(deps.set_active_use_case))
       .app_data(web::Data::new(deps.add_member_use_case))
@@ -209,11 +227,11 @@ pub fn configure_web_routes(cfg: &mut web::ServiceConfig, deps: WebRouteDependen
       )
       // Bank account routes
       .app_data(web::Data::new(deps.create_bank_account_use_case))
-      .app_data(web::Data::new(deps.get_bank_accounts_use_case))
+      .app_data(web::Data::new(deps.get_bank_accounts_use_case.clone()))
       .app_data(web::Data::new(deps.update_bank_account_use_case))
       .app_data(web::Data::new(deps.archive_bank_account_use_case))
       .app_data(web::Data::new(deps.set_active_bank_account_use_case))
-      .app_data(web::Data::new(deps.active_bank_account_repo))
+      .app_data(web::Data::new(deps.active_bank_account_repo.clone()))
       .route(
         "/{company_id}/bank-accounts",
         web::get().to(bank_accounts_web::bank_accounts_page),
@@ -233,6 +251,59 @@ pub fn configure_web_routes(cfg: &mut web::ServiceConfig, deps: WebRouteDependen
       .route(
         "/{company_id}/bank-accounts/{account_id}/set-active",
         web::post().to(bank_accounts_web::set_active_bank_account_handler),
+      ),
+  );
+
+  // Customer web UI routes
+  cfg.service(
+    web::scope("/customers")
+      .wrap(WebAuthMiddleware::new(deps.auth_service.clone()))
+      .app_data(web::Data::new(deps.templates.clone()))
+      .app_data(web::Data::new(deps.get_companies_use_case.clone()))
+      .app_data(web::Data::new(deps.create_customer_use_case))
+      .app_data(web::Data::new(deps.list_customers_use_case.clone()))
+      .app_data(web::Data::new(deps.update_customer_use_case))
+      .app_data(web::Data::new(deps.archive_customer_use_case))
+      .route("", web::get().to(customers_web::customers_page))
+      .route(
+        "/create",
+        web::post().to(customers_web::create_customer_submit),
+      )
+      .route(
+        "/{id}/edit",
+        web::post().to(customers_web::update_customer_submit),
+      )
+      .route(
+        "/{id}/archive",
+        web::delete().to(customers_web::archive_customer),
+      ),
+  );
+
+  // Invoice web UI routes
+  cfg.service(
+    web::scope("/invoices")
+      .wrap(WebAuthMiddleware::new(deps.auth_service.clone()))
+      .app_data(web::Data::new(deps.templates.clone()))
+      .app_data(web::Data::new(deps.get_companies_use_case.clone()))
+      .app_data(web::Data::new(deps.create_invoice_use_case))
+      .app_data(web::Data::new(deps.list_invoices_use_case))
+      .app_data(web::Data::new(deps.list_customers_use_case))
+      .app_data(web::Data::new(deps.get_invoice_details_use_case))
+      .app_data(web::Data::new(deps.change_invoice_status_use_case))
+      .app_data(web::Data::new(deps.archive_invoice_use_case))
+      .app_data(web::Data::new(deps.get_bank_accounts_use_case.clone()))
+      .app_data(web::Data::new(deps.active_bank_account_repo.clone()))
+      .route("", web::get().to(invoices_web::invoices_page))
+      .route("", web::post().to(invoices_web::create_invoice_submit))
+      .route("/create", web::get().to(invoices_web::invoice_create_page))
+      .route("/{id}", web::get().to(invoices_web::invoice_details_page))
+      .route(
+        "/{id}/status",
+        web::post().to(invoices_web::change_invoice_status),
+      )
+      .route(
+        "/{id}/archive",
+        web::delete().to(invoices_web::archive_invoice),
       ),
   );
 }
@@ -313,6 +384,84 @@ pub fn configure_bank_account_routes(
     );
 }
 
+/// Configure customer routes (REST API)
+///
+/// Mounts all customer-related endpoints under the provided scope.
+/// All routes are prefixed with the scope path (e.g., /api/v1/customers).
+///
+/// # Routes
+///
+/// - POST / - Create a new customer
+/// - GET / - List all customers for the active company
+/// - PUT /{id} - Update a customer
+/// - DELETE /{id}/archive - Archive a customer
+pub fn configure_customer_routes(
+  cfg: &mut web::ServiceConfig,
+  create_use_case: Arc<CreateCustomerUseCase>,
+  list_use_case: Arc<ListCustomersUseCase>,
+  update_use_case: Arc<UpdateCustomerUseCase>,
+  archive_use_case: Arc<ArchiveCustomerUseCase>,
+) {
+  cfg
+    .app_data(web::Data::new(create_use_case))
+    .app_data(web::Data::new(list_use_case))
+    .app_data(web::Data::new(update_use_case))
+    .app_data(web::Data::new(archive_use_case))
+    .route("", web::post().to(customers_web::create_customer_submit))
+    .route("", web::get().to(customers_web::customers_page))
+    .route(
+      "/{id}/edit",
+      web::post().to(customers_web::update_customer_submit),
+    )
+    .route(
+      "/{id}/archive",
+      web::delete().to(customers_web::archive_customer),
+    );
+}
+
+/// Configure invoice routes (REST API)
+///
+/// Mounts all invoice-related endpoints under the provided scope.
+/// All routes are prefixed with the scope path (e.g., /api/v1/invoices).
+///
+/// # Routes
+///
+/// - POST / - Create a new invoice
+/// - GET / - List all invoices for the active company
+/// - GET /create - Show invoice creation form
+/// - GET /{id} - Get invoice details
+/// - POST /{id}/status - Change invoice status
+/// - DELETE /{id}/archive - Archive an invoice
+pub fn configure_invoice_routes(
+  cfg: &mut web::ServiceConfig,
+  create_use_case: Arc<CreateInvoiceUseCase>,
+  list_use_case: Arc<ListInvoicesUseCase>,
+  get_details_use_case: Arc<GetInvoiceDetailsUseCase>,
+  change_status_use_case: Arc<ChangeInvoiceStatusUseCase>,
+  archive_use_case: Arc<ArchiveInvoiceUseCase>,
+  list_customers_use_case: Arc<ListCustomersUseCase>,
+) {
+  cfg
+    .app_data(web::Data::new(create_use_case))
+    .app_data(web::Data::new(list_use_case))
+    .app_data(web::Data::new(get_details_use_case))
+    .app_data(web::Data::new(change_status_use_case))
+    .app_data(web::Data::new(archive_use_case))
+    .app_data(web::Data::new(list_customers_use_case))
+    .route("", web::get().to(invoices_web::invoices_page))
+    .route("", web::post().to(invoices_web::create_invoice_submit))
+    .route("/create", web::get().to(invoices_web::invoice_create_page))
+    .route("/{id}", web::get().to(invoices_web::invoice_details_page))
+    .route(
+      "/{id}/status",
+      web::post().to(invoices_web::change_invoice_status),
+    )
+    .route(
+      "/{id}/archive",
+      web::delete().to(invoices_web::archive_invoice),
+    );
+}
+
 #[cfg(test)]
 mod tests {
   #[tokio::test]
@@ -322,6 +471,5 @@ mod tests {
 
     // Note: We can't easily create real use cases without database connections,
     // so we just verify the configuration syntax is correct by compiling
-    assert!(true);
   }
 }

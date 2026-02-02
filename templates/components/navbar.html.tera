@@ -1,11 +1,26 @@
 <nav class="bg-white dark:bg-gray-800 shadow-lg fixed w-full top-0 z-50">
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
     <div class="flex justify-between h-16">
-      <!-- Left: Logo -->
+      <!-- Left: Logo & Navigation -->
       <div class="flex">
         <div class="flex-shrink-0 flex items-center">
           <a href="/dashboard" class="text-2xl font-bold text-primary-600 dark:text-primary-400">
             TaxByte
+          </a>
+        </div>
+        <!-- Navigation Links -->
+        <div class="hidden sm:ml-8 sm:flex sm:space-x-8">
+          <a href="/dashboard" class="border-transparent text-gray-500 dark:text-gray-300 hover:border-gray-300 hover:text-gray-700 dark:hover:text-white inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
+            Dashboard
+          </a>
+          <a href="/customers" class="border-transparent text-gray-500 dark:text-gray-300 hover:border-gray-300 hover:text-gray-700 dark:hover:text-white inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
+            Customers
+          </a>
+          <a href="/invoices" class="border-transparent text-gray-500 dark:text-gray-300 hover:border-gray-300 hover:text-gray-700 dark:hover:text-white inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
+            Invoices
+          </a>
+          <a href="/companies" class="border-transparent text-gray-500 dark:text-gray-300 hover:border-gray-300 hover:text-gray-700 dark:hover:text-white inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
+            Companies
           </a>
         </div>
       </div>

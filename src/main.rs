@@ -9,7 +9,7 @@ use taxbyte::{
   adapters::http::{
     AuthMiddleware, RequestIdMiddleware, TemplateEngine, WebRouteDependencies,
     configure_auth_routes, configure_bank_account_routes, configure_company_routes,
-    configure_web_routes,
+    configure_customer_routes, configure_invoice_routes, configure_web_routes,
   },
   application::auth::{
     GetCurrentUserUseCase, LoginUserUseCase, LogoutAllDevicesUseCase, LogoutUserUseCase,
@@ -21,13 +21,20 @@ use taxbyte::{
     GetUserCompaniesUseCase, RemoveCompanyMemberUseCase, SetActiveBankAccountUseCase,
     SetActiveCompanyUseCase, UpdateBankAccountUseCase, UpdateCompanyProfileUseCase,
   },
+  application::invoice::{
+    ArchiveCustomerUseCase, ArchiveInvoiceUseCase, ChangeInvoiceStatusUseCase,
+    CreateCustomerUseCase, CreateInvoiceUseCase, GetInvoiceDetailsUseCase, ListCustomersUseCase,
+    ListInvoicesUseCase, UpdateCustomerUseCase,
+  },
   domain::auth::services::AuthService,
   domain::company::services::CompanyService,
+  domain::invoice::InvoiceService,
   infrastructure::{
     config::Config,
     persistence::postgres::{
       PostgresActiveBankAccountRepository, PostgresActiveCompanyRepository,
       PostgresBankAccountRepository, PostgresCompanyMemberRepository, PostgresCompanyRepository,
+      PostgresCustomerRepository, PostgresInvoiceLineItemRepository, PostgresInvoiceRepository,
       PostgresLoginAttemptRepository, PostgresSessionRepository, PostgresUserRepository,
     },
     security::{Argon2PasswordHasher, SecureTokenGenerator},
@@ -160,6 +167,11 @@ async fn main() -> std::io::Result<()> {
   let active_bank_account_repo =
     Arc::new(PostgresActiveBankAccountRepository::new(db_pool.clone()));
 
+  // Initialize invoice repositories
+  let customer_repo = Arc::new(PostgresCustomerRepository::new(db_pool.clone()));
+  let invoice_repo = Arc::new(PostgresInvoiceRepository::new(db_pool.clone()));
+  let invoice_line_item_repo = Arc::new(PostgresInvoiceLineItemRepository::new(db_pool.clone()));
+
   // Initialize security services
   let password_hasher =
     Arc::new(Argon2PasswordHasher::new().expect("Failed to create password hasher"));
@@ -182,6 +194,16 @@ async fn main() -> std::io::Result<()> {
     user_repo.clone(),
     bank_account_repo.clone(),
     active_bank_account_repo.clone(),
+  ));
+
+  // Initialize invoice service
+  let invoice_service = Arc::new(InvoiceService::new(
+    invoice_repo.clone(),
+    invoice_line_item_repo.clone(),
+    customer_repo.clone(),
+    company_member_repo.clone(),
+    company_repo.clone(),
+    bank_account_repo.clone(),
   ));
 
   // Initialize use cases
@@ -217,6 +239,21 @@ async fn main() -> std::io::Result<()> {
     Arc::new(ArchiveBankAccountUseCase::new(company_service.clone()));
   let set_active_bank_account_use_case =
     Arc::new(SetActiveBankAccountUseCase::new(company_service.clone()));
+
+  // Initialize customer use cases
+  let create_customer_use_case = Arc::new(CreateCustomerUseCase::new(invoice_service.clone()));
+  let list_customers_use_case = Arc::new(ListCustomersUseCase::new(invoice_service.clone()));
+  let update_customer_use_case = Arc::new(UpdateCustomerUseCase::new(invoice_service.clone()));
+  let archive_customer_use_case = Arc::new(ArchiveCustomerUseCase::new(invoice_service.clone()));
+
+  // Initialize invoice use cases
+  let create_invoice_use_case = Arc::new(CreateInvoiceUseCase::new(invoice_service.clone()));
+  let list_invoices_use_case = Arc::new(ListInvoicesUseCase::new(invoice_service.clone()));
+  let get_invoice_details_use_case =
+    Arc::new(GetInvoiceDetailsUseCase::new(invoice_service.clone()));
+  let change_invoice_status_use_case =
+    Arc::new(ChangeInvoiceStatusUseCase::new(invoice_service.clone()));
+  let archive_invoice_use_case = Arc::new(ArchiveInvoiceUseCase::new(invoice_service.clone()));
 
   // Initialize template engine
   let templates = TemplateEngine::new().expect("Failed to initialize template engine");
@@ -258,6 +295,17 @@ async fn main() -> std::io::Result<()> {
             user_repo: user_repo.clone(),
             member_repo: company_member_repo.clone(),
             active_bank_account_repo: active_bank_account_repo.clone(),
+            // Customer use cases
+            create_customer_use_case: create_customer_use_case.clone(),
+            list_customers_use_case: list_customers_use_case.clone(),
+            update_customer_use_case: update_customer_use_case.clone(),
+            archive_customer_use_case: archive_customer_use_case.clone(),
+            // Invoice use cases
+            create_invoice_use_case: create_invoice_use_case.clone(),
+            list_invoices_use_case: list_invoices_use_case.clone(),
+            get_invoice_details_use_case: get_invoice_details_use_case.clone(),
+            change_invoice_status_use_case: change_invoice_status_use_case.clone(),
+            archive_invoice_use_case: archive_invoice_use_case.clone(),
           },
         )
       })
@@ -296,6 +344,36 @@ async fn main() -> std::io::Result<()> {
               set_active_bank_account_use_case.clone(),
             )
           })),
+      )
+      // Configure customer API routes (protected with AuthMiddleware)
+      .service(
+        web::scope("/api/v1/customers")
+          .wrap(AuthMiddleware::new(get_user_use_case.clone()))
+          .configure(|cfg| {
+            configure_customer_routes(
+              cfg,
+              create_customer_use_case.clone(),
+              list_customers_use_case.clone(),
+              update_customer_use_case.clone(),
+              archive_customer_use_case.clone(),
+            )
+          }),
+      )
+      // Configure invoice API routes (protected with AuthMiddleware)
+      .service(
+        web::scope("/api/v1/invoices")
+          .wrap(AuthMiddleware::new(get_user_use_case.clone()))
+          .configure(|cfg| {
+            configure_invoice_routes(
+              cfg,
+              create_invoice_use_case.clone(),
+              list_invoices_use_case.clone(),
+              get_invoice_details_use_case.clone(),
+              change_invoice_status_use_case.clone(),
+              archive_invoice_use_case.clone(),
+              list_customers_use_case.clone(),
+            )
+          }),
       )
       // Static files
       .service(fs::Files::new("/static", "./static"))

@@ -317,6 +317,5 @@ mod tests {
   async fn test_placeholder() {
     // This test would require mock implementations of all the traits
     // For now, this is just a placeholder to show the test structure
-    assert!(true);
   }
 }

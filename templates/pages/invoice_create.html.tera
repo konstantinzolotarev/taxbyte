@@ -1,0 +1,321 @@
+{% extends "layouts/base.html.tera" %}
+
+{% block title %}Create Invoice - TaxByte{% endblock title %}
+
+{% block content %}
+<div class="min-h-screen bg-gray-50 dark:bg-gray-900" x-data="invoiceBuilder()">
+  <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <!-- Header -->
+    <div class="mb-8">
+      <div class="flex justify-between items-center">
+        <div>
+          <h1 class="text-3xl font-bold text-gray-900 dark:text-white">Create Invoice</h1>
+          <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">
+            Fill in the invoice details below
+          </p>
+        </div>
+        <a href="/invoices"
+          class="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700"
+        >
+          Cancel
+        </a>
+      </div>
+    </div>
+
+    <!-- Invoice Form -->
+    <div class="bg-white dark:bg-gray-800 shadow sm:rounded-lg">
+      <div class="px-4 py-5 sm:p-6">
+        <form @submit.prevent="submitInvoice">
+          <!-- Customer & Date Info -->
+          <div class="grid grid-cols-1 gap-6 sm:grid-cols-2 mb-6">
+            <div>
+              <label for="customer_id" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Customer *
+              </label>
+              <select x-model="invoice.customer_id" id="customer_id" required
+                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent">
+                <option value="">Select a customer</option>
+                {% for customer in customers %}
+                <option value="{{ customer.id }}">{{ customer.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <div>
+              <label for="invoice_number" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Invoice Number *
+              </label>
+              <input type="text" x-model="invoice.invoice_number" id="invoice_number" required
+                placeholder="e.g. INV-2024-001"
+                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent">
+            </div>
+
+            <div>
+              <label for="bank_account_id" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Bank Account
+              </label>
+              <select x-model="invoice.bank_account_id" id="bank_account_id"
+                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent">
+                <option value="">No bank account</option>
+                {% for account in bank_accounts %}
+                <option value="{{ account.id }}"
+                  {% if active_bank_account_id and account.id == active_bank_account_id %}selected{% endif %}>
+                  {{ account.name }} ({{ account.iban_formatted }})
+                </option>
+                {% endfor %}
+              </select>
+              {% if bank_accounts | length == 0 %}
+              <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                No bank accounts configured. <a href="/companies/{{ company_id }}/bank-accounts" class="text-primary-600 hover:underline">Add one</a>
+              </p>
+              {% endif %}
+            </div>
+
+            <div>
+              <label for="invoice_date" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Invoice Date *
+              </label>
+              <input type="date" x-model="invoice.invoice_date" id="invoice_date" required
+                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent">
+            </div>
+
+            <div>
+              <label for="payment_terms" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Payment Terms *
+              </label>
+              <select x-model="invoice.payment_terms" id="payment_terms" required
+                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent">
+                <option value="due_on_receipt">Due on Receipt</option>
+                <option value="net_15">Net 15</option>
+                <option value="net_30">Net 30</option>
+                <option value="net_60">Net 60</option>
+              </select>
+            </div>
+
+            <div>
+              <label for="currency" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Currency *
+              </label>
+              <select x-model="invoice.currency" id="currency" required
+                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent">
+                <option value="USD">USD ($)</option>
+                <option value="EUR">EUR (€)</option>
+                <option value="GBP">GBP (£)</option>
+                <option value="DKK">DKK (kr)</option>
+                <option value="SEK">SEK (kr)</option>
+                <option value="NOK">NOK (kr)</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Line Items -->
+          <div class="mb-6">
+            <div class="flex justify-between items-center mb-4">
+              <h3 class="text-lg font-medium text-gray-900 dark:text-white">Line Items</h3>
+              <button type="button" @click="addLineItem"
+                class="inline-flex items-center gap-2 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white font-medium rounded-lg transition-colors">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                </svg>
+                Add Line Item
+              </button>
+            </div>
+
+            <div class="overflow-x-auto">
+              <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead class="bg-gray-50 dark:bg-gray-700">
+                  <tr>
+                    <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Description</th>
+                    <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase w-24">Qty</th>
+                    <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase w-32">Unit Price</th>
+                    <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase w-24">VAT %</th>
+                    <th class="px-3 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase w-32">Total</th>
+                    <th class="px-3 py-3 w-16"></th>
+                  </tr>
+                </thead>
+                <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                  <template x-for="(item, index) in invoice.line_items" :key="index">
+                    <tr>
+                      <td class="px-3 py-3">
+                        <input type="text" x-model="item.description" required
+                          class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                          placeholder="Service description">
+                      </td>
+                      <td class="px-3 py-3">
+                        <input type="number" x-model="item.quantity" step="0.01" min="0.01" required
+                          class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent">
+                      </td>
+                      <td class="px-3 py-3">
+                        <input type="number" x-model="item.unit_price" step="0.01" min="0" required
+                          class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent">
+                      </td>
+                      <td class="px-3 py-3">
+                        <input type="number" x-model="item.vat_rate" step="0.01" min="0" max="100" required
+                          class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent">
+                      </td>
+                      <td class="px-3 py-3 text-right text-sm text-gray-900 dark:text-white" x-text="formatCurrency(calculateLineTotal(item))"></td>
+                      <td class="px-3 py-3 text-center">
+                        <button type="button" @click="removeLineItem(index)"
+                          class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300">
+                          <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      </td>
+                    </tr>
+                  </template>
+                  <template x-if="invoice.line_items.length === 0">
+                    <tr>
+                      <td colspan="6" class="px-3 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+                        No line items. Click "Add Line Item" to get started.
+                      </td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Totals -->
+          <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
+            <div class="flex justify-end">
+              <div class="w-64 space-y-2">
+                <div class="flex justify-between text-sm">
+                  <span class="text-gray-600 dark:text-gray-400">Subtotal:</span>
+                  <span class="font-medium text-gray-900 dark:text-white" x-text="formatCurrency(calculateSubtotal())"></span>
+                </div>
+                <div class="flex justify-between text-sm">
+                  <span class="text-gray-600 dark:text-gray-400">Total VAT:</span>
+                  <span class="font-medium text-gray-900 dark:text-white" x-text="formatCurrency(calculateTotalVAT())"></span>
+                </div>
+                <div class="flex justify-between text-lg font-bold border-t border-gray-200 dark:border-gray-700 pt-2">
+                  <span class="text-gray-900 dark:text-white">Grand Total:</span>
+                  <span class="text-gray-900 dark:text-white" x-text="formatCurrency(calculateGrandTotal())"></span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Error Message -->
+          <div x-show="error" x-text="error" class="mt-4 p-4 bg-red-50 dark:bg-red-900 text-red-700 dark:text-red-200 rounded-md text-sm"></div>
+
+          <!-- Submit Buttons -->
+          <div class="mt-6 flex justify-end space-x-3">
+            <a href="/invoices"
+              class="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700">
+              Cancel
+            </a>
+            <button type="submit"
+              :disabled="submitting"
+              class="inline-flex items-center px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+              <span x-show="!submitting">Create Invoice</span>
+              <span x-show="submitting">Creating...</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function invoiceBuilder() {
+  return {
+    invoice: {
+      customer_id: '',
+      invoice_number: '',
+      bank_account_id: {% if active_bank_account_id %}'{{ active_bank_account_id }}'{% else %}''{% endif %},
+      invoice_date: new Date().toISOString().split('T')[0],
+      payment_terms: 'net_30',
+      currency: 'USD',
+      line_items: []
+    },
+    error: '',
+    submitting: false,
+
+    addLineItem() {
+      this.invoice.line_items.push({
+        description: '',
+        quantity: '1',
+        unit_price: '0',
+        vat_rate: '0'
+      });
+    },
+
+    removeLineItem(index) {
+      this.invoice.line_items.splice(index, 1);
+    },
+
+    calculateLineTotal(item) {
+      const qty = parseFloat(item.quantity) || 0;
+      const price = parseFloat(item.unit_price) || 0;
+      const vatRate = parseFloat(item.vat_rate) || 0;
+      const subtotal = qty * price;
+      const vat = subtotal * (vatRate / 100);
+      return subtotal + vat;
+    },
+
+    calculateSubtotal() {
+      return this.invoice.line_items.reduce((sum, item) => {
+        const qty = parseFloat(item.quantity) || 0;
+        const price = parseFloat(item.unit_price) || 0;
+        return sum + (qty * price);
+      }, 0);
+    },
+
+    calculateTotalVAT() {
+      return this.invoice.line_items.reduce((sum, item) => {
+        const qty = parseFloat(item.quantity) || 0;
+        const price = parseFloat(item.unit_price) || 0;
+        const vatRate = parseFloat(item.vat_rate) || 0;
+        const subtotal = qty * price;
+        return sum + (subtotal * (vatRate / 100));
+      }, 0);
+    },
+
+    calculateGrandTotal() {
+      return this.calculateSubtotal() + this.calculateTotalVAT();
+    },
+
+    formatCurrency(amount) {
+      const symbols = { USD: '$', EUR: '€', GBP: '£', DKK: 'kr', SEK: 'kr', NOK: 'kr' };
+      const symbol = symbols[this.invoice.currency] || '';
+      return symbol + amount.toFixed(2);
+    },
+
+    async submitInvoice() {
+      this.error = '';
+      this.submitting = true;
+
+      if (this.invoice.line_items.length === 0) {
+        this.error = 'Please add at least one line item';
+        this.submitting = false;
+        return;
+      }
+
+      try {
+        const response = await fetch('/invoices', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(this.invoice)
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          window.location.href = `/invoices/${data.invoice_id}`;
+        } else {
+          const data = await response.json();
+          this.error = data.message || 'Failed to create invoice';
+        }
+      } catch (err) {
+        this.error = 'An error occurred. Please try again.';
+      } finally {
+        this.submitting = false;
+      }
+    }
+  }
+}
+</script>
+{% endblock content %}

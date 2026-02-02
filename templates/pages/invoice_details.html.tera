@@ -1,0 +1,226 @@
+{% extends "layouts/base.html.tera" %}
+
+{% block title %}Invoice {{ invoice.invoice_number }} - TaxByte{% endblock title %}
+
+{% block content %}
+<div class="min-h-screen bg-gray-50 dark:bg-gray-900">
+  <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <!-- Header -->
+    <div class="mb-8">
+      <div class="flex justify-between items-center">
+        <div class="flex items-center space-x-4">
+          <a href="/invoices" class="text-gray-400 hover:text-gray-500">
+            <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+            </svg>
+          </a>
+          <div>
+            <h1 class="text-3xl font-bold text-gray-900 dark:text-white">{{ invoice.invoice_number }}</h1>
+            <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">
+              Created {{ invoice.created_at | date(format="%B %d, %Y") }}
+            </p>
+          </div>
+        </div>
+        <div class="flex space-x-3">
+          {% if invoice.status == "draft" %}
+          <button
+            hx-post="/invoices/{{ invoice.id }}/status"
+            hx-vals='{"status": "sent"}'
+            hx-swap="none"
+            class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700">
+            Mark as Sent
+          </button>
+          {% elif invoice.status == "sent" or invoice.status == "overdue" %}
+          <button
+            hx-post="/invoices/{{ invoice.id }}/status"
+            hx-vals='{"status": "paid"}'
+            hx-swap="none"
+            class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700">
+            Mark as Paid
+          </button>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Invoice Preview -->
+    <div class="bg-white dark:bg-gray-800 shadow sm:rounded-lg p-8">
+      <!-- Invoice Header -->
+      <div class="flex justify-between mb-8">
+        <!-- Company Info (Left) -->
+        <div>
+          <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-4">{{ invoice.company.name }}</h2>
+          <p class="text-sm text-gray-600 dark:text-gray-400">
+            {% if invoice.company.street %}
+              {{ invoice.company.street }}<br>
+            {% endif %}
+            {% if invoice.company.city or invoice.company.state or invoice.company.postal_code %}
+              {{ invoice.company.city }}{% if invoice.company.state %}, {{ invoice.company.state }}{% endif %} {{ invoice.company.postal_code }}<br>
+            {% endif %}
+            {% if invoice.company.country %}
+              {{ invoice.company.country }}<br>
+            {% endif %}
+            {% if invoice.company.email %}
+              Email: {{ invoice.company.email }}<br>
+            {% endif %}
+            {% if invoice.company.phone %}
+              Phone: {{ invoice.company.phone }}<br>
+            {% endif %}
+            {% if invoice.company.registry_code %}
+              Registry Code: {{ invoice.company.registry_code }}<br>
+            {% endif %}
+            {% if invoice.company.vat_number %}
+              VAT: {{ invoice.company.vat_number }}
+            {% endif %}
+          </p>
+        </div>
+
+        <!-- Invoice Info (Right) -->
+        <div class="text-right">
+          <div class="text-4xl font-bold text-gray-900 dark:text-white mb-2">INVOICE</div>
+          <div class="text-sm space-y-1">
+            <div><span class="font-medium">Invoice:</span> {{ invoice.invoice_number }}</div>
+            <div><span class="font-medium">Date:</span> {{ invoice.invoice_date }}</div>
+            <div><span class="font-medium">Due Date:</span> {{ invoice.due_date }}</div>
+            <div class="mt-2">
+              {% if invoice.status == "draft" %}
+                <span class="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">
+                  Draft
+                </span>
+              {% elif invoice.status == "sent" %}
+                <span class="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300">
+                  Sent
+                </span>
+              {% elif invoice.status == "paid" %}
+                <span class="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">
+                  Paid
+                </span>
+              {% elif invoice.status == "overdue" %}
+                <span class="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300">
+                  Overdue
+                </span>
+              {% elif invoice.status == "cancelled" %}
+                <span class="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">
+                  Cancelled
+                </span>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Customer Info -->
+      <div class="mb-8">
+        <h3 class="text-sm font-semibold text-gray-900 dark:text-white mb-2">ISSUED TO:</h3>
+        <div class="text-sm text-gray-600 dark:text-gray-400">
+          <div class="font-medium text-gray-900 dark:text-white">{{ invoice.customer.name }}</div>
+          {% if invoice.customer.street %}
+            {{ invoice.customer.street }}<br>
+          {% endif %}
+          {% if invoice.customer.city or invoice.customer.state or invoice.customer.postal_code %}
+            {{ invoice.customer.city }}{% if invoice.customer.state %}, {{ invoice.customer.state }}{% endif %} {{ invoice.customer.postal_code }}<br>
+          {% endif %}
+          {% if invoice.customer.country %}
+            {{ invoice.customer.country }}
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Payment Details -->
+      {% if invoice.bank_account %}
+      <div class="mb-8 p-4 bg-gray-50 dark:bg-gray-700 rounded-md">
+        <h4 class="text-sm font-semibold text-gray-900 dark:text-white mb-3">PAYMENT DETAILS</h4>
+        <div class="text-sm space-y-3">
+          <div>
+            <div class="text-xs text-gray-600 dark:text-gray-400 mb-1">IBAN:</div>
+            <div class="font-mono text-gray-900 dark:text-white">{{ invoice.bank_account.iban }}</div>
+          </div>
+          {% if invoice.bank_account.bank_details %}
+          <div>
+            <div class="text-xs text-gray-600 dark:text-gray-400 mb-1">Bank Details:</div>
+            <div class="text-gray-900 dark:text-white" style="white-space: pre-line;">{{ invoice.bank_account.bank_details }}</div>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Line Items -->
+      <div class="mb-8">
+        <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+          <thead class="bg-gray-50 dark:bg-gray-700">
+            <tr>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Description</th>
+              <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Qty</th>
+              <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Price</th>
+              <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">VAT %</th>
+              <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Total</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+            {% for item in invoice.line_items %}
+            <tr>
+              <td class="px-4 py-3 text-sm text-gray-900 dark:text-white">{{ item.description }}</td>
+              <td class="px-4 py-3 text-sm text-right text-gray-600 dark:text-gray-400">{{ item.quantity | format_money }}</td>
+              <td class="px-4 py-3 text-sm text-right text-gray-600 dark:text-gray-400">{{ item.unit_price | format_money }}</td>
+              <td class="px-4 py-3 text-sm text-right text-gray-600 dark:text-gray-400">{{ item.vat_rate | format_money }}%</td>
+              <td class="px-4 py-3 text-sm text-right text-gray-900 dark:text-white font-medium">{{ item.total | format_money }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Totals -->
+      <div class="flex justify-end">
+        <div class="w-64 space-y-2">
+          <div class="flex justify-between text-sm">
+            <span class="text-gray-600 dark:text-gray-400">Subtotal:</span>
+            <span class="font-medium text-gray-900 dark:text-white">{{ invoice.totals.subtotal | format_money }} {{ invoice.currency }}</span>
+          </div>
+          <div class="flex justify-between text-sm">
+            <span class="text-gray-600 dark:text-gray-400">Total VAT:</span>
+            <span class="font-medium text-gray-900 dark:text-white">{{ invoice.totals.total_vat | format_money }} {{ invoice.currency }}</span>
+          </div>
+          <div class="flex justify-between text-lg font-bold border-t border-gray-200 dark:border-gray-700 pt-2">
+            <span class="text-gray-900 dark:text-white">Grand Total:</span>
+            <span class="text-gray-900 dark:text-white">{{ invoice.totals.grand_total | format_money }} {{ invoice.currency }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Payment Terms -->
+      <div class="mt-8 pt-8 border-t border-gray-200 dark:border-gray-700">
+        <div class="text-sm text-gray-600 dark:text-gray-400">
+          <div class="font-medium text-gray-900 dark:text-white mb-2">Payment Terms: {{ invoice.payment_terms }}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="mt-6 flex justify-between items-center">
+      <div>
+        <button
+          hx-delete="/invoices/{{ invoice.id }}/archive"
+          hx-confirm="Are you sure you want to archive this invoice?"
+          hx-swap="none"
+          class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300 text-sm">
+          Archive Invoice
+        </button>
+      </div>
+      <div class="flex space-x-3">
+        {% if invoice.status == "draft" or invoice.status == "sent" or invoice.status == "overdue" %}
+        <button
+          hx-post="/invoices/{{ invoice.id }}/status"
+          hx-vals='{"status": "cancelled"}'
+          hx-confirm="Are you sure you want to cancel this invoice?"
+          hx-swap="none"
+          class="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700">
+          Cancel Invoice
+        </button>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock content %}

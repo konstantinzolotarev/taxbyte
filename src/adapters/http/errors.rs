@@ -8,6 +8,7 @@ use std::fmt;
 
 use crate::domain::auth::errors::{AuthError, RepositoryError};
 use crate::domain::company::CompanyError;
+use crate::domain::invoice::InvoiceError;
 
 use super::dtos::ErrorResponse;
 
@@ -203,6 +204,41 @@ impl From<CompanyError> for ApiError {
       CompanyError::Repository(e) => ApiError::Internal(format!("Repository error: {}", e)),
       CompanyError::Validation(e) => ApiError::Validation(e.to_string()),
       CompanyError::Auth(e) => ApiError::from(e),
+    }
+  }
+}
+
+/// Convert InvoiceError to ApiError
+impl From<InvoiceError> for ApiError {
+  fn from(error: InvoiceError) -> Self {
+    match error {
+      InvoiceError::Validation(e) => ApiError::Validation(e.to_string()),
+      InvoiceError::CustomerNotFound(_) => ApiError::Validation("Customer not found".to_string()),
+      InvoiceError::InvoiceNotFound(_) => ApiError::Validation("Invoice not found".to_string()),
+      InvoiceError::LineItemNotFound(_) => ApiError::Validation("Line item not found".to_string()),
+      InvoiceError::CustomerNameAlreadyExists => {
+        ApiError::Validation("A customer with this name already exists".to_string())
+      }
+      InvoiceError::InvoiceNumberAlreadyExists(num) => {
+        ApiError::Validation(format!("Invoice number {} already exists", num))
+      }
+      InvoiceError::CannotEditInvoice(msg) => ApiError::Validation(msg),
+      InvoiceError::InvalidStatusTransition(msg) => ApiError::Validation(msg),
+      InvoiceError::PermissionDenied(_) => ApiError::Auth(AuthErrorKind::InvalidSession),
+      InvoiceError::CurrencyMismatch { expected, actual } => ApiError::Validation(format!(
+        "Currency mismatch: expected {}, got {}",
+        expected, actual
+      )),
+      InvoiceError::NoLineItems => {
+        ApiError::Validation("At least one line item is required".to_string())
+      }
+      InvoiceError::InvalidLineItemOrder => {
+        ApiError::Validation("Invalid line item order".to_string())
+      }
+      InvoiceError::PdfGenerationFailed(msg) => ApiError::Internal(msg),
+      InvoiceError::Repository(msg) => ApiError::Internal(msg),
+      InvoiceError::Database(e) => ApiError::Internal(format!("Database error: {}", e)),
+      InvoiceError::Internal(msg) => ApiError::Internal(msg),
     }
   }
 }

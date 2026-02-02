@@ -19,6 +19,7 @@ pub use middleware::{
 };
 pub use routes::{
   WebRouteDependencies, configure_auth_routes, configure_bank_account_routes,
-  configure_company_routes, configure_web_routes,
+  configure_company_routes, configure_customer_routes, configure_invoice_routes,
+  configure_web_routes,
 };
 pub use templates::TemplateEngine;
