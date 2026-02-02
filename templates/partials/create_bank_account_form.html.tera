@@ -1,5 +1,5 @@
 <form
-  hx-post="/companies/{{ company_id }}/bank-accounts/create"
+  hx-post="/c/{{ company_id }}/bank-accounts/create"
   hx-target="#createBankAccountFormContainer"
   hx-swap="outerHTML"
   class="p-6"

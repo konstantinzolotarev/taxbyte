@@ -2,7 +2,9 @@ use async_trait::async_trait;
 use chrono::NaiveDate;
 use uuid::Uuid;
 
-use super::entities::{Customer, Invoice, InvoiceLineItem};
+use super::entities::{
+  Customer, Invoice, InvoiceLineItem, InvoiceTemplate, InvoiceTemplateLineItem,
+};
 use super::errors::InvoiceError;
 use super::value_objects::InvoiceStatus;
 
@@ -45,6 +47,7 @@ pub trait InvoiceRepository: Send + Sync {
     company_id: Uuid,
     current_date: NaiveDate,
   ) -> Result<Vec<Invoice>, InvoiceError>;
+  async fn delete(&self, id: Uuid) -> Result<(), InvoiceError>;
 }
 
 #[async_trait]
@@ -62,4 +65,38 @@ pub trait InvoiceLineItemRepository: Send + Sync {
     &self,
     invoice_id: Uuid,
   ) -> Result<Vec<InvoiceLineItem>, InvoiceError>;
+}
+
+#[async_trait]
+pub trait InvoiceTemplateRepository: Send + Sync {
+  async fn create(&self, template: InvoiceTemplate) -> Result<InvoiceTemplate, InvoiceError>;
+  async fn update(&self, template: InvoiceTemplate) -> Result<InvoiceTemplate, InvoiceError>;
+  async fn find_by_id(&self, id: Uuid) -> Result<Option<InvoiceTemplate>, InvoiceError>;
+  async fn find_by_company_id(
+    &self,
+    company_id: Uuid,
+  ) -> Result<Vec<InvoiceTemplate>, InvoiceError>;
+  async fn find_active_by_company_id(
+    &self,
+    company_id: Uuid,
+  ) -> Result<Vec<InvoiceTemplate>, InvoiceError>;
+  async fn exists_by_name(
+    &self,
+    company_id: Uuid,
+    name: &str,
+    exclude_id: Option<Uuid>,
+  ) -> Result<bool, InvoiceError>;
+}
+
+#[async_trait]
+pub trait InvoiceTemplateLineItemRepository: Send + Sync {
+  async fn create_many(
+    &self,
+    items: Vec<InvoiceTemplateLineItem>,
+  ) -> Result<Vec<InvoiceTemplateLineItem>, InvoiceError>;
+  async fn find_by_template_id(
+    &self,
+    template_id: Uuid,
+  ) -> Result<Vec<InvoiceTemplateLineItem>, InvoiceError>;
+  async fn delete_by_template_id(&self, template_id: Uuid) -> Result<(), InvoiceError>;
 }

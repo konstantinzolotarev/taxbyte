@@ -62,7 +62,7 @@
               </td>
               <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                 <button
-                  hx-delete="/customers/{{ customer.id }}/archive"
+                  hx-delete="/c/{{ company_id }}/customers/{{ customer.id }}/archive"
                   hx-confirm="Are you sure you want to archive this customer?"
                   hx-target="#customer-{{ customer.id }}"
                   hx-swap="outerHTML"
@@ -98,7 +98,7 @@
     <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true" onclick="document.getElementById('createCustomerModal').classList.add('hidden')"></div>
     <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
     <div class="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
-      <form hx-post="/customers/create" hx-target="#createCustomerModal" hx-swap="outerHTML">
+      <form hx-post="/c/{{ company_id }}/customers/create" hx-target="#createCustomerModal" hx-swap="outerHTML">
         <div class="bg-white dark:bg-gray-800 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
           <h3 class="text-lg leading-6 font-medium text-gray-900 dark:text-white mb-4">
             New Customer

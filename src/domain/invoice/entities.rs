@@ -4,7 +4,7 @@ use uuid::Uuid;
 
 use super::value_objects::{
   Currency, CustomerAddress, CustomerName, InvoiceNumber, InvoiceStatus, LineItemDescription,
-  Money, PaymentTerms, Quantity, VatRate,
+  Money, PaymentTerms, Quantity, TemplateName, VatRate,
 };
 
 // Customer - Reusable client information
@@ -232,6 +232,107 @@ impl InvoiceTotals {
       total_vat,
       grand_total,
     }
+  }
+}
+
+// Invoice Template - Reusable invoice configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InvoiceTemplate {
+  pub id: Uuid,
+  pub company_id: Uuid,
+  pub name: TemplateName,
+  pub description: Option<String>,
+  pub customer_id: Uuid,
+  pub bank_account_id: Option<Uuid>,
+  pub payment_terms: PaymentTerms,
+  pub currency: Currency,
+  pub created_at: DateTime<Utc>,
+  pub updated_at: DateTime<Utc>,
+  pub archived_at: Option<DateTime<Utc>>,
+}
+
+impl InvoiceTemplate {
+  pub fn new(
+    company_id: Uuid,
+    name: TemplateName,
+    description: Option<String>,
+    customer_id: Uuid,
+    bank_account_id: Option<Uuid>,
+    payment_terms: PaymentTerms,
+    currency: Currency,
+  ) -> Self {
+    let now = Utc::now();
+    Self {
+      id: Uuid::new_v4(),
+      company_id,
+      name,
+      description,
+      customer_id,
+      bank_account_id,
+      payment_terms,
+      currency,
+      created_at: now,
+      updated_at: now,
+      archived_at: None,
+    }
+  }
+
+  pub fn archive(&mut self) {
+    self.archived_at = Some(Utc::now());
+    self.updated_at = Utc::now();
+  }
+
+  pub fn is_archived(&self) -> bool {
+    self.archived_at.is_some()
+  }
+}
+
+// Invoice Template Line Item
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InvoiceTemplateLineItem {
+  pub id: Uuid,
+  pub template_id: Uuid,
+  pub description: LineItemDescription,
+  pub quantity: Quantity,
+  pub unit_price: Money,
+  pub vat_rate: VatRate,
+  pub line_order: i32,
+}
+
+impl InvoiceTemplateLineItem {
+  pub fn new(
+    template_id: Uuid,
+    description: LineItemDescription,
+    quantity: Quantity,
+    unit_price: Money,
+    vat_rate: VatRate,
+    line_order: i32,
+  ) -> Self {
+    Self {
+      id: Uuid::new_v4(),
+      template_id,
+      description,
+      quantity,
+      unit_price,
+      vat_rate,
+      line_order,
+    }
+  }
+
+  pub fn subtotal(&self) -> Money {
+    self.unit_price.multiply(self.quantity.value())
+  }
+
+  pub fn vat_amount(&self) -> Money {
+    self.subtotal().multiply(self.vat_rate.as_multiplier())
+  }
+
+  pub fn total(&self) -> Money {
+    let subtotal = self.subtotal();
+    let vat = self.vat_amount();
+    subtotal
+      .add(&vat)
+      .expect("Currency mismatch in template line item total")
   }
 }
 

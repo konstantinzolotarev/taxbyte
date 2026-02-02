@@ -4,11 +4,20 @@
 
 {% block content %}
 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+  <!-- Breadcrumb -->
+  <nav class="mb-6 text-sm">
+    <ol class="flex items-center gap-2 text-gray-500 dark:text-gray-400">
+      <li><a href="/companies" class="hover:text-primary-600 dark:hover:text-primary-400">Companies</a></li>
+      <li><svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path></svg></li>
+      <li class="text-gray-900 dark:text-white font-medium">{% if active_company %}{{ active_company.name }}{% else %}Company{% endif %}</li>
+    </ol>
+  </nav>
+
   <!-- Header -->
-  <div class="mb-8 flex justify-between items-center">
+  <div class="mb-8 flex justify-between items-start">
     <div>
       <h1 class="text-3xl font-bold text-gray-900 dark:text-white">Bank Accounts</h1>
-      <p class="mt-2 text-gray-600 dark:text-gray-400">Manage your company's bank accounts</p>
+      <p class="mt-2 text-gray-600 dark:text-gray-400">Manage bank accounts for {% if active_company %}{{ active_company.name }}{% else %}your company{% endif %}</p>
     </div>
     <button
       onclick="openCreateBankAccountModal()"

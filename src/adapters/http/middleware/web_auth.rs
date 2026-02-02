@@ -61,30 +61,48 @@ where
     // Extract session token from cookie
     let token = req.cookie("session_token").map(|c| c.value().to_string());
 
+    // Debug logging
+    let path = req.path().to_string();
+    tracing::debug!(
+      "WebAuthMiddleware: path={}, has_cookie={}",
+      path,
+      token.is_some()
+    );
+
     let auth_service = self.auth_service.clone();
     let service = Rc::clone(&self.service);
 
     Box::pin(async move {
       if let Some(token_str) = token {
-        match SessionToken::from_string(token_str) {
-          Ok(session_token) => match auth_service.validate_session(session_token).await {
-            Ok(user) => {
-              // Attach user to request extensions
-              req.extensions_mut().insert(user);
-              let res = service.call(req).await?;
-              Ok(res.map_into_left_body())
+        tracing::debug!(
+          "WebAuthMiddleware: Found token cookie (first 10 chars): {}",
+          &token_str.chars().take(10).collect::<String>()
+        );
+        match SessionToken::from_string(token_str.clone()) {
+          Ok(session_token) => {
+            tracing::debug!("WebAuthMiddleware: Token parsed successfully, validating session...");
+            match auth_service.validate_session(session_token).await {
+              Ok(user) => {
+                tracing::debug!("WebAuthMiddleware: Session valid for user_id={}", user.id);
+                // Attach user to request extensions
+                req.extensions_mut().insert(user);
+                let res = service.call(req).await?;
+                Ok(res.map_into_left_body())
+              }
+              Err(e) => {
+                tracing::warn!("WebAuthMiddleware: Session validation failed: {:?}", e);
+                // Invalid session - redirect to login for web requests
+                let res = req.into_response(
+                  HttpResponse::Found()
+                    .insert_header(("Location", "/login"))
+                    .finish(),
+                );
+                Ok(res.map_into_right_body())
+              }
             }
-            Err(_) => {
-              // Invalid session - redirect to login for web requests
-              let res = req.into_response(
-                HttpResponse::Found()
-                  .insert_header(("Location", "/login"))
-                  .finish(),
-              );
-              Ok(res.map_into_right_body())
-            }
-          },
-          Err(_) => {
+          }
+          Err(e) => {
+            tracing::warn!("WebAuthMiddleware: Token parsing failed: {:?}", e);
             // Invalid token format
             let res = req.into_response(
               HttpResponse::Found()
@@ -95,6 +113,7 @@ where
           }
         }
       } else {
+        tracing::debug!("WebAuthMiddleware: No session cookie found");
         // No session cookie - redirect to login
         let res = req.into_response(
           HttpResponse::Found()

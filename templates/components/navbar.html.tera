@@ -4,21 +4,29 @@
       <!-- Left: Logo & Navigation -->
       <div class="flex">
         <div class="flex-shrink-0 flex items-center">
-          <a href="/dashboard" class="text-2xl font-bold text-primary-600 dark:text-primary-400">
-            TaxByte
-          </a>
+          {% if company_id %}
+            <a href="/c/{{ company_id }}/dashboard" class="text-2xl font-bold text-primary-600 dark:text-primary-400">
+              TaxByte
+            </a>
+          {% else %}
+            <a href="/companies" class="text-2xl font-bold text-primary-600 dark:text-primary-400">
+              TaxByte
+            </a>
+          {% endif %}
         </div>
         <!-- Navigation Links -->
         <div class="hidden sm:ml-8 sm:flex sm:space-x-8">
-          <a href="/dashboard" class="border-transparent text-gray-500 dark:text-gray-300 hover:border-gray-300 hover:text-gray-700 dark:hover:text-white inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
-            Dashboard
-          </a>
-          <a href="/customers" class="border-transparent text-gray-500 dark:text-gray-300 hover:border-gray-300 hover:text-gray-700 dark:hover:text-white inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
-            Customers
-          </a>
-          <a href="/invoices" class="border-transparent text-gray-500 dark:text-gray-300 hover:border-gray-300 hover:text-gray-700 dark:hover:text-white inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
-            Invoices
-          </a>
+          {% if company_id %}
+            <a href="/c/{{ company_id }}/dashboard" class="border-transparent text-gray-500 dark:text-gray-300 hover:border-gray-300 hover:text-gray-700 dark:hover:text-white inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
+              Dashboard
+            </a>
+            <a href="/c/{{ company_id }}/customers" class="border-transparent text-gray-500 dark:text-gray-300 hover:border-gray-300 hover:text-gray-700 dark:hover:text-white inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
+              Customers
+            </a>
+            <a href="/c/{{ company_id }}/invoices" class="border-transparent text-gray-500 dark:text-gray-300 hover:border-gray-300 hover:text-gray-700 dark:hover:text-white inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
+              Invoices
+            </a>
+          {% endif %}
           <a href="/companies" class="border-transparent text-gray-500 dark:text-gray-300 hover:border-gray-300 hover:text-gray-700 dark:hover:text-white inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
             Companies
           </a>

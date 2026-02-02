@@ -49,6 +49,9 @@ pub enum AuthErrorKind {
 
   /// Account deleted (403)
   AccountDeleted,
+
+  /// Access forbidden (403)
+  Forbidden,
 }
 
 impl fmt::Display for ApiError {
@@ -73,6 +76,7 @@ impl ResponseError for ApiError {
         AuthErrorKind::EmailAlreadyExists => StatusCode::CONFLICT,
         AuthErrorKind::UserNotFound => StatusCode::NOT_FOUND,
         AuthErrorKind::AccountDeleted => StatusCode::FORBIDDEN,
+        AuthErrorKind::Forbidden => StatusCode::FORBIDDEN,
       },
       ApiError::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
     }
@@ -107,6 +111,10 @@ impl ResponseError for ApiError {
           AuthErrorKind::AccountDeleted => (
             "account_deleted",
             "This account has been deleted".to_string(),
+          ),
+          AuthErrorKind::Forbidden => (
+            "forbidden",
+            "You do not have permission to access this resource".to_string(),
           ),
         };
         (err_type, msg, None)
@@ -235,6 +243,11 @@ impl From<InvoiceError> for ApiError {
       InvoiceError::InvalidLineItemOrder => {
         ApiError::Validation("Invalid line item order".to_string())
       }
+      InvoiceError::TemplateNotFound(_) => ApiError::Validation("Template not found".to_string()),
+      InvoiceError::TemplateNameAlreadyExists(name) => {
+        ApiError::Validation(format!("A template with name '{}' already exists", name))
+      }
+      InvoiceError::CannotDeleteInvoice(msg) => ApiError::Validation(msg),
       InvoiceError::PdfGenerationFailed(msg) => ApiError::Internal(msg),
       InvoiceError::Repository(msg) => ApiError::Internal(msg),
       InvoiceError::Database(e) => ApiError::Internal(format!("Database error: {}", e)),

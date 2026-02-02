@@ -32,21 +32,46 @@ fn get_user(req: &HttpRequest) -> Result<User, ApiError> {
   }
 }
 
+#[derive(Deserialize)]
+pub struct DropdownQuery {
+  pub company_id: Option<Uuid>,
+  pub current_page: Option<String>,
+}
+
 /// GET /companies/dropdown - Returns company list dropdown HTML
 pub async fn company_dropdown_handler(
   req: HttpRequest,
+  query: web::Query<DropdownQuery>,
   templates: web::Data<TemplateEngine>,
   get_companies_use_case: web::Data<Arc<GetUserCompaniesUseCase>>,
 ) -> Result<HttpResponse, ApiError> {
   let user = get_user(&req)?;
 
-  // Fetch user's companies (already includes is_active flag)
+  // Fetch user's companies
   let companies_response = get_companies_use_case
     .execute(GetUserCompaniesCommand { user_id: user.id })
     .await?;
 
+  // Mark the active company based on company_id from query
+  let companies_with_active: Vec<serde_json::Value> = companies_response
+    .companies
+    .iter()
+    .map(|c| {
+      serde_json::json!({
+        "company_id": c.company_id,
+        "name": c.name,
+        "role": c.role,
+        "is_active": query.company_id == Some(c.company_id),
+      })
+    })
+    .collect();
+
   let mut context = tera::Context::new();
-  context.insert("companies", &companies_response.companies);
+  context.insert("companies", &companies_with_active);
+  context.insert(
+    "current_page",
+    &query.current_page.as_deref().unwrap_or("dashboard"),
+  );
 
   let html = templates
     .render("partials/company_list_dropdown.html.tera", &context)
@@ -183,10 +208,20 @@ pub async fn companies_page(
     .find(|c| c.is_active)
     .map(|c| serde_json::json!({ "id": c.company_id, "name": c.name }));
 
+  // Extract active company_id for navbar links
+  let active_company_id = companies_response
+    .companies
+    .iter()
+    .find(|c| c.is_active)
+    .map(|c| c.company_id);
+
   let mut context = tera::Context::new();
   context.insert("user", &user);
   context.insert("companies", &companies_response.companies);
   context.insert("active_company", &active_company);
+  if let Some(company_id) = active_company_id {
+    context.insert("company_id", &company_id.to_string());
+  }
 
   let html = templates
     .render("pages/companies.html.tera", &context)

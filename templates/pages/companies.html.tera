@@ -5,7 +5,7 @@
 {% block content %}
 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
   <!-- Header -->
-  <div class="mb-8 flex justify-between items-center">
+  <div class="mb-8 flex justify-between items-start">
     <div>
       <h1 class="text-3xl font-bold text-gray-900 dark:text-white">Your Companies</h1>
       <p class="mt-2 text-gray-600 dark:text-gray-400">Manage your companies and switch between them</p>
@@ -66,7 +66,7 @@
               </button>
             {% endif %}
             <a
-              href="/companies/{{ company.company_id }}/bank-accounts"
+              href="/c/{{ company.company_id }}/bank-accounts"
               class="{% if company.is_active %}flex-1{% else %}flex-shrink-0{% endif %} px-4 py-2 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 text-sm font-medium rounded-lg transition-colors text-center"
             >
               Bank Accounts

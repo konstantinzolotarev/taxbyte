@@ -18,8 +18,11 @@ use crate::application::invoice::{
 };
 use crate::domain::auth::ports::UserRepository;
 use crate::domain::auth::services::AuthService;
-use crate::domain::company::ports::{ActiveBankAccountRepository, CompanyMemberRepository};
+use crate::domain::company::ports::{
+  ActiveBankAccountRepository, ActiveCompanyRepository, CompanyMemberRepository,
+};
 
+use super::errors::ApiError;
 use super::handlers::auth::{
   get_current_user_handler, login_handler, logout_all_handler, logout_handler, register_handler,
 };
@@ -28,9 +31,10 @@ use super::handlers::company::{
   remove_company_member_handler, set_active_company_handler,
 };
 use super::handlers::{
-  bank_accounts, bank_accounts_web, company_web, customers_web, invoices_web, pages, web_auth,
+  bank_accounts, bank_accounts_web, company_web, customers_web, get_user, invoices_web, pages,
+  web_auth,
 };
-use super::middleware::WebAuthMiddleware;
+use super::middleware::{CompanyContextMiddleware, WebAuthMiddleware};
 use super::templates::TemplateEngine;
 
 /// Dependencies for web route configuration
@@ -53,6 +57,7 @@ pub struct WebRouteDependencies {
   pub set_active_bank_account_use_case: Arc<SetActiveBankAccountUseCase>,
   pub user_repo: Arc<dyn UserRepository>,
   pub member_repo: Arc<dyn CompanyMemberRepository>,
+  pub active_company_repo: Arc<dyn ActiveCompanyRepository>,
   pub active_bank_account_repo: Arc<dyn ActiveBankAccountRepository>,
   // Customer use cases
   pub create_customer_use_case: Arc<CreateCustomerUseCase>,
@@ -65,6 +70,14 @@ pub struct WebRouteDependencies {
   pub get_invoice_details_use_case: Arc<GetInvoiceDetailsUseCase>,
   pub change_invoice_status_use_case: Arc<ChangeInvoiceStatusUseCase>,
   pub archive_invoice_use_case: Arc<ArchiveInvoiceUseCase>,
+  pub delete_invoice_use_case: Arc<crate::application::invoice::DeleteInvoiceUseCase>,
+  // Template use cases
+  pub create_template_from_invoice_use_case:
+    Arc<crate::application::invoice::CreateTemplateFromInvoiceUseCase>,
+  pub list_templates_use_case: Arc<crate::application::invoice::ListTemplatesUseCase>,
+  pub create_invoice_from_template_use_case:
+    Arc<crate::application::invoice::CreateInvoiceFromTemplateUseCase>,
+  pub archive_template_use_case: Arc<crate::application::invoice::ArchiveTemplateUseCase>,
 }
 
 /// Configure authentication routes
@@ -140,23 +153,112 @@ pub fn configure_auth_routes(
     .route("/me", web::get().to(get_current_user_handler));
 }
 
+/// Helper to redirect old routes to company-scoped versions
+async fn redirect_to_default_company(
+  req: actix_web::HttpRequest,
+  target_page: &str,
+  active_repo: web::Data<Arc<dyn ActiveCompanyRepository>>,
+  member_repo: web::Data<Arc<dyn CompanyMemberRepository>>,
+) -> Result<HttpResponse, ApiError> {
+  tracing::debug!("redirect_to_default_company: target_page={}", target_page);
+  let user = get_user(&req)?;
+  tracing::debug!("redirect_to_default_company: user_id={}", user.id);
+
+  // Try to get last-used company from active_companies table
+  let company_id = if let Some(id) = active_repo.get_active(user.id).await? {
+    tracing::debug!(
+      "redirect_to_default_company: found active company_id={}",
+      id
+    );
+    // Verify user is still a member
+    if member_repo.find_member(id, user.id).await?.is_some() {
+      id
+    } else {
+      tracing::debug!(
+        "redirect_to_default_company: user not a member of active company, getting first"
+      );
+      // Not a member anymore, get first company
+      let memberships = member_repo.find_by_user_id(user.id).await?;
+      tracing::debug!(
+        "redirect_to_default_company: found {} memberships",
+        memberships.len()
+      );
+      memberships
+        .first()
+        .map(|m| m.company_id)
+        .ok_or_else(|| ApiError::Validation("No companies found".into()))?
+    }
+  } else {
+    tracing::debug!("redirect_to_default_company: no active company, getting first");
+    // No active company set, get first company
+    let memberships = member_repo.find_by_user_id(user.id).await?;
+    tracing::debug!(
+      "redirect_to_default_company: found {} memberships",
+      memberships.len()
+    );
+    memberships.first().map(|m| m.company_id).ok_or_else(|| {
+      ApiError::Validation("No companies found. Please create a company first.".into())
+    })?
+  };
+
+  let redirect_url = format!("/c/{}/{}", company_id, target_page);
+  tracing::debug!(
+    "redirect_to_default_company: redirecting to {}",
+    redirect_url
+  );
+  Ok(
+    HttpResponse::Found()
+      .insert_header(("Location", redirect_url))
+      .finish(),
+  )
+}
+
 /// Configure web UI routes
 pub fn configure_web_routes(cfg: &mut web::ServiceConfig, deps: WebRouteDependencies) {
+  // Configure company-scoped routes FIRST (before deps is partially moved)
+  configure_company_scoped_routes(cfg, &deps);
+
+  // Clone repos for redirect handlers (before they get moved)
+  let active_repo_for_redirects = deps.active_company_repo.clone();
+  let member_repo_for_redirects = deps.member_repo.clone();
+  let auth_service_for_redirects = deps.auth_service.clone();
+
   // Add template engine to app data
   cfg.app_data(web::Data::new(deps.templates.clone()));
 
   // Public routes (no authentication required)
-  cfg
-    .route(
-      "/",
-      web::get().to(|| async {
-        HttpResponse::Found()
-          .insert_header(("Location", "/login"))
-          .finish()
-      }),
-    )
-    .route("/login", web::get().to(pages::login_page))
-    .route("/register", web::get().to(pages::register_page));
+  cfg.route("/login", web::get().to(pages::login_page));
+  cfg.route("/register", web::get().to(pages::register_page));
+
+  // Root route - redirect to dashboard (will redirect to login if not authenticated)
+  let active_repo_root = active_repo_for_redirects.clone();
+  let member_repo_root = member_repo_for_redirects.clone();
+  cfg.service(
+    web::resource("/")
+      .route(web::get().to(
+        move |req: actix_web::HttpRequest,
+              active_repo: web::Data<Arc<dyn ActiveCompanyRepository>>,
+              member_repo: web::Data<Arc<dyn CompanyMemberRepository>>| async move {
+          // Try to get user - if not authenticated, redirect to login
+          match get_user(&req) {
+            Ok(_) => {
+              // Authenticated - redirect to company-scoped dashboard
+              redirect_to_default_company(req, "dashboard", active_repo, member_repo).await
+            }
+            Err(_) => {
+              // Not authenticated - redirect to login
+              Ok(
+                HttpResponse::Found()
+                  .insert_header(("Location", "/login"))
+                  .finish(),
+              )
+            }
+          }
+        },
+      ))
+      .app_data(web::Data::new(active_repo_root))
+      .app_data(web::Data::new(member_repo_root)),
+  );
 
   // Auth form submission routes
   cfg.service(
@@ -168,14 +270,21 @@ pub fn configure_web_routes(cfg: &mut web::ServiceConfig, deps: WebRouteDependen
       .route("/logout", web::post().to(web_auth::logout)),
   );
 
-  // Protected routes (require authentication)
+  // Redirect old routes to company-scoped versions
+  let active_repo_dashboard = active_repo_for_redirects.clone();
+  let member_repo_dashboard = member_repo_for_redirects.clone();
   cfg.service(
-    web::scope("/dashboard")
-      .wrap(WebAuthMiddleware::new(deps.auth_service.clone()))
-      .app_data(web::Data::new(deps.templates.clone())) // Add templates to scope
-      .app_data(web::Data::new(deps.get_companies_use_case.clone()))
-      .app_data(web::Data::new(deps.get_details_use_case.clone()))
-      .route("", web::get().to(pages::dashboard_page)),
+    web::resource("/dashboard")
+      .wrap(WebAuthMiddleware::new(auth_service_for_redirects.clone()))
+      .app_data(web::Data::new(active_repo_dashboard.clone()))
+      .app_data(web::Data::new(member_repo_dashboard.clone()))
+      .route(web::get().to(
+        move |req: actix_web::HttpRequest,
+              active_repo: web::Data<Arc<dyn ActiveCompanyRepository>>,
+              member_repo: web::Data<Arc<dyn CompanyMemberRepository>>| {
+          redirect_to_default_company(req, "dashboard", active_repo, member_repo)
+        },
+      )),
   );
 
   // Company web UI routes
@@ -224,86 +333,190 @@ pub fn configure_web_routes(cfg: &mut web::ServiceConfig, deps: WebRouteDependen
       .route(
         "/{company_id}/members/{user_id}",
         web::delete().to(company_web::remove_member_handler),
-      )
-      // Bank account routes
-      .app_data(web::Data::new(deps.create_bank_account_use_case))
-      .app_data(web::Data::new(deps.get_bank_accounts_use_case.clone()))
-      .app_data(web::Data::new(deps.update_bank_account_use_case))
-      .app_data(web::Data::new(deps.archive_bank_account_use_case))
-      .app_data(web::Data::new(deps.set_active_bank_account_use_case))
-      .app_data(web::Data::new(deps.active_bank_account_repo.clone()))
-      .route(
-        "/{company_id}/bank-accounts",
-        web::get().to(bank_accounts_web::bank_accounts_page),
-      )
-      .route(
-        "/{company_id}/bank-accounts/create",
-        web::post().to(bank_accounts_web::create_bank_account_submit),
-      )
-      .route(
-        "/{company_id}/bank-accounts/{account_id}/update",
-        web::post().to(bank_accounts_web::update_bank_account_submit),
-      )
-      .route(
-        "/{company_id}/bank-accounts/{account_id}/archive",
-        web::post().to(bank_accounts_web::archive_bank_account_handler),
-      )
-      .route(
-        "/{company_id}/bank-accounts/{account_id}/set-active",
-        web::post().to(bank_accounts_web::set_active_bank_account_handler),
       ),
   );
 
-  // Customer web UI routes
+  // Redirect old /customers to company-scoped version
+  let active_repo_customers = active_repo_for_redirects.clone();
+  let member_repo_customers = member_repo_for_redirects.clone();
   cfg.service(
-    web::scope("/customers")
+    web::resource("/customers")
+      .wrap(WebAuthMiddleware::new(auth_service_for_redirects.clone()))
+      .app_data(web::Data::new(active_repo_customers.clone()))
+      .app_data(web::Data::new(member_repo_customers.clone()))
+      .route(web::get().to(
+        move |req: actix_web::HttpRequest,
+              active_repo: web::Data<Arc<dyn ActiveCompanyRepository>>,
+              member_repo: web::Data<Arc<dyn CompanyMemberRepository>>| {
+          redirect_to_default_company(req, "customers", active_repo, member_repo)
+        },
+      )),
+  );
+
+  // Redirect old /invoices to company-scoped version
+  let active_repo_invoices = active_repo_for_redirects.clone();
+  let member_repo_invoices = member_repo_for_redirects.clone();
+  cfg.service(
+    web::resource("/invoices")
+      .wrap(WebAuthMiddleware::new(auth_service_for_redirects.clone()))
+      .app_data(web::Data::new(active_repo_invoices.clone()))
+      .app_data(web::Data::new(member_repo_invoices.clone()))
+      .route(web::get().to(
+        move |req: actix_web::HttpRequest,
+              active_repo: web::Data<Arc<dyn ActiveCompanyRepository>>,
+              member_repo: web::Data<Arc<dyn CompanyMemberRepository>>| {
+          redirect_to_default_company(req, "invoices", active_repo, member_repo)
+        },
+      )),
+  );
+
+  // Redirect old /bank-accounts to company-scoped version
+  let active_repo_bank = active_repo_for_redirects.clone();
+  let member_repo_bank = member_repo_for_redirects.clone();
+  cfg.service(
+    web::resource("/bank-accounts")
+      .wrap(WebAuthMiddleware::new(auth_service_for_redirects.clone()))
+      .app_data(web::Data::new(active_repo_bank.clone()))
+      .app_data(web::Data::new(member_repo_bank.clone()))
+      .route(web::get().to(
+        move |req: actix_web::HttpRequest,
+              active_repo: web::Data<Arc<dyn ActiveCompanyRepository>>,
+              member_repo: web::Data<Arc<dyn CompanyMemberRepository>>| {
+          redirect_to_default_company(req, "bank-accounts", active_repo, member_repo)
+        },
+      )),
+  );
+}
+
+/// Configure company-scoped routes with URL-based company context
+///
+/// These routes use the pattern `/c/{company_id}/...` where company_id is extracted
+/// from the URL and validated by CompanyContextMiddleware.
+///
+/// This runs in parallel with old routes during migration.
+pub fn configure_company_scoped_routes(cfg: &mut web::ServiceConfig, deps: &WebRouteDependencies) {
+  cfg.service(
+    web::scope("/c/{company_id}")
+      // Important: Middleware execution order is REVERSE of wrap() order
+      // WebAuthMiddleware must execute first to set User in extensions
+      .wrap(CompanyContextMiddleware::new(
+        deps.member_repo.clone(),
+        deps.active_company_repo.clone(),
+      ))
       .wrap(WebAuthMiddleware::new(deps.auth_service.clone()))
       .app_data(web::Data::new(deps.templates.clone()))
+      // Dashboard
       .app_data(web::Data::new(deps.get_companies_use_case.clone()))
-      .app_data(web::Data::new(deps.create_customer_use_case))
+      .app_data(web::Data::new(deps.get_details_use_case.clone()))
+      .route("/dashboard", web::get().to(pages::dashboard_page))
+      // Customers
+      .app_data(web::Data::new(deps.create_customer_use_case.clone()))
       .app_data(web::Data::new(deps.list_customers_use_case.clone()))
-      .app_data(web::Data::new(deps.update_customer_use_case))
-      .app_data(web::Data::new(deps.archive_customer_use_case))
-      .route("", web::get().to(customers_web::customers_page))
+      .app_data(web::Data::new(deps.update_customer_use_case.clone()))
+      .app_data(web::Data::new(deps.archive_customer_use_case.clone()))
+      .route("/customers", web::get().to(customers_web::customers_page))
       .route(
-        "/create",
+        "/customers/create",
         web::post().to(customers_web::create_customer_submit),
       )
       .route(
-        "/{id}/edit",
+        "/customers/{id}/edit",
         web::post().to(customers_web::update_customer_submit),
       )
       .route(
-        "/{id}/archive",
+        "/customers/{id}/archive",
         web::delete().to(customers_web::archive_customer),
-      ),
-  );
-
-  // Invoice web UI routes
-  cfg.service(
-    web::scope("/invoices")
-      .wrap(WebAuthMiddleware::new(deps.auth_service.clone()))
-      .app_data(web::Data::new(deps.templates.clone()))
-      .app_data(web::Data::new(deps.get_companies_use_case.clone()))
-      .app_data(web::Data::new(deps.create_invoice_use_case))
-      .app_data(web::Data::new(deps.list_invoices_use_case))
-      .app_data(web::Data::new(deps.list_customers_use_case))
-      .app_data(web::Data::new(deps.get_invoice_details_use_case))
-      .app_data(web::Data::new(deps.change_invoice_status_use_case))
-      .app_data(web::Data::new(deps.archive_invoice_use_case))
+      )
+      // Invoices
+      .app_data(web::Data::new(deps.create_invoice_use_case.clone()))
+      .app_data(web::Data::new(deps.list_invoices_use_case.clone()))
+      .app_data(web::Data::new(deps.get_invoice_details_use_case.clone()))
+      .app_data(web::Data::new(deps.change_invoice_status_use_case.clone()))
+      .app_data(web::Data::new(deps.archive_invoice_use_case.clone()))
+      .app_data(web::Data::new(deps.delete_invoice_use_case.clone()))
       .app_data(web::Data::new(deps.get_bank_accounts_use_case.clone()))
       .app_data(web::Data::new(deps.active_bank_account_repo.clone()))
-      .route("", web::get().to(invoices_web::invoices_page))
-      .route("", web::post().to(invoices_web::create_invoice_submit))
-      .route("/create", web::get().to(invoices_web::invoice_create_page))
-      .route("/{id}", web::get().to(invoices_web::invoice_details_page))
+      .route("/invoices", web::get().to(invoices_web::invoices_page))
       .route(
-        "/{id}/status",
+        "/invoices",
+        web::post().to(invoices_web::create_invoice_submit),
+      )
+      .route(
+        "/invoices/create",
+        web::get().to(invoices_web::invoice_create_page),
+      )
+      // Invoice Templates - specific literal paths MUST come before {id} patterns
+      .app_data(web::Data::new(
+        deps.create_template_from_invoice_use_case.clone(),
+      ))
+      .app_data(web::Data::new(deps.list_templates_use_case.clone()))
+      .app_data(web::Data::new(
+        deps.create_invoice_from_template_use_case.clone(),
+      ))
+      .app_data(web::Data::new(deps.archive_template_use_case.clone()))
+      .route(
+        "/invoices/templates",
+        web::get().to(invoices_web::templates_page),
+      )
+      .route(
+        "/invoices/create-from-template/{id}",
+        web::get().to(invoices_web::create_from_template_page),
+      )
+      .route(
+        "/invoices/create-from-template/{id}",
+        web::post().to(invoices_web::create_invoice_from_template),
+      )
+      // Regular invoice routes - {id} patterns must come after specific literal paths
+      .route(
+        "/invoices/{id}",
+        web::get().to(invoices_web::invoice_details_page),
+      )
+      .route(
+        "/invoices/{id}/save-as-template",
+        web::post().to(invoices_web::save_as_template),
+      )
+      .route(
+        "/invoices/{id}/status",
         web::post().to(invoices_web::change_invoice_status),
       )
       .route(
-        "/{id}/archive",
+        "/invoices/{id}/archive",
         web::delete().to(invoices_web::archive_invoice),
+      )
+      .route(
+        "/invoices/{id}",
+        web::delete().to(invoices_web::delete_invoice),
+      )
+      .route(
+        "/invoices/templates/{id}",
+        web::delete().to(invoices_web::archive_template),
+      )
+      // Bank Accounts
+      .app_data(web::Data::new(deps.create_bank_account_use_case.clone()))
+      .app_data(web::Data::new(deps.update_bank_account_use_case.clone()))
+      .app_data(web::Data::new(deps.archive_bank_account_use_case.clone()))
+      .app_data(web::Data::new(
+        deps.set_active_bank_account_use_case.clone(),
+      ))
+      .route(
+        "/bank-accounts",
+        web::get().to(bank_accounts_web::bank_accounts_page),
+      )
+      .route(
+        "/bank-accounts/create",
+        web::post().to(bank_accounts_web::create_bank_account_submit),
+      )
+      .route(
+        "/bank-accounts/{account_id}/update",
+        web::post().to(bank_accounts_web::update_bank_account_submit),
+      )
+      .route(
+        "/bank-accounts/{account_id}/archive",
+        web::post().to(bank_accounts_web::archive_bank_account_handler),
+      )
+      .route(
+        "/bank-accounts/{account_id}/set-active",
+        web::post().to(bank_accounts_web::set_active_bank_account_handler),
       ),
   );
 }

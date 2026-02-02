@@ -1,41 +1,15 @@
-use actix_web::{HttpMessage, HttpRequest, HttpResponse, web};
+use actix_web::{HttpRequest, HttpResponse, web};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
 
-use crate::adapters::http::{AuthErrorKind, errors::ApiError, templates::TemplateEngine};
+use crate::adapters::http::handlers::{get_company_context, get_user};
+use crate::adapters::http::{errors::ApiError, templates::TemplateEngine};
 use crate::application::company::GetUserCompaniesCommand;
 use crate::application::invoice::{
   ArchiveCustomerCommand, ArchiveCustomerUseCase, CreateCustomerCommand, CreateCustomerUseCase,
   ListCustomersCommand, ListCustomersUseCase, UpdateCustomerCommand, UpdateCustomerUseCase,
 };
-use crate::domain::auth::entities::User;
-
-fn get_user(req: &HttpRequest) -> Result<User, ApiError> {
-  req
-    .extensions()
-    .get::<User>()
-    .cloned()
-    .ok_or(ApiError::Auth(AuthErrorKind::InvalidSession))
-}
-
-async fn get_active_company_id(
-  user_id: Uuid,
-  get_companies_use_case: &Arc<crate::application::company::GetUserCompaniesUseCase>,
-) -> Result<Uuid, ApiError> {
-  let companies_response = get_companies_use_case
-    .execute(GetUserCompaniesCommand { user_id })
-    .await?;
-
-  companies_response
-    .companies
-    .iter()
-    .find(|c| c.is_active)
-    .map(|c| c.company_id)
-    .ok_or_else(|| {
-      ApiError::Validation("No active company selected. Please select a company.".to_string())
-    })
-}
 
 // GET /customers - List all customers
 pub async fn customers_page(
@@ -45,7 +19,28 @@ pub async fn customers_page(
   get_companies_use_case: web::Data<Arc<crate::application::company::GetUserCompaniesUseCase>>,
 ) -> Result<HttpResponse, ApiError> {
   let user = get_user(&req)?;
-  let company_id = get_active_company_id(user.id, &get_companies_use_case).await?;
+
+  // Extract company context from URL (validated by middleware)
+  let company_context = get_company_context(&req)?;
+  let company_id = company_context.company_id;
+
+  // Fetch user's companies for the navbar selector
+  let companies_response = get_companies_use_case
+    .execute(GetUserCompaniesCommand { user_id: user.id })
+    .await?;
+
+  // Find current company from the list for the selector
+  let active_company = companies_response
+    .companies
+    .iter()
+    .find(|c| c.company_id == company_id)
+    .map(|c| {
+      serde_json::json!({
+        "company_id": c.company_id,
+        "name": c.name,
+        "role": c.role,
+      })
+    });
 
   let response = list_customers_use_case
     .execute(ListCustomersCommand {
@@ -58,6 +53,10 @@ pub async fn customers_page(
   let mut context = tera::Context::new();
   context.insert("customers", &response.customers);
   context.insert("user", &user);
+  context.insert("companies", &companies_response.companies);
+  context.insert("active_company", &active_company);
+  context.insert("company_id", &company_id.to_string());
+  context.insert("current_page", "customers");
 
   let html = templates
     .render("pages/customers.html.tera", &context)
@@ -82,10 +81,10 @@ pub async fn create_customer_submit(
   form: web::Form<CreateCustomerForm>,
   templates: web::Data<TemplateEngine>,
   create_customer_use_case: web::Data<Arc<CreateCustomerUseCase>>,
-  get_companies_use_case: web::Data<Arc<crate::application::company::GetUserCompaniesUseCase>>,
 ) -> Result<HttpResponse, ApiError> {
   let user = get_user(&req)?;
-  let company_id = get_active_company_id(user.id, &get_companies_use_case).await?;
+  let company_context = get_company_context(&req)?;
+  let company_id = company_context.company_id;
 
   match create_customer_use_case
     .execute(CreateCustomerCommand {
@@ -102,7 +101,7 @@ pub async fn create_customer_submit(
   {
     Ok(_) => Ok(
       HttpResponse::Ok()
-        .insert_header(("HX-Redirect", "/customers"))
+        .insert_header(("HX-Redirect", format!("/c/{}/customers", company_id)))
         .finish(),
     ),
     Err(e) => {
@@ -142,6 +141,8 @@ pub async fn update_customer_submit(
   update_customer_use_case: web::Data<Arc<UpdateCustomerUseCase>>,
 ) -> Result<HttpResponse, ApiError> {
   let user = get_user(&req)?;
+  let company_context = get_company_context(&req)?;
+  let company_id = company_context.company_id;
   let customer_id = path.into_inner();
 
   match update_customer_use_case
@@ -159,7 +160,7 @@ pub async fn update_customer_submit(
   {
     Ok(_) => Ok(
       HttpResponse::Ok()
-        .insert_header(("HX-Redirect", "/customers"))
+        .insert_header(("HX-Redirect", format!("/c/{}/customers", company_id)))
         .finish(),
     ),
     Err(e) => {

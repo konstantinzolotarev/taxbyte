@@ -247,4 +247,30 @@ impl InvoiceRepository for PostgresInvoiceRepository {
 
     rows.into_iter().map(|r| r.try_into()).collect()
   }
+
+  async fn delete(&self, id: Uuid) -> Result<(), InvoiceError> {
+    // First delete all line items
+    sqlx::query(
+      r#"
+      DELETE FROM invoice_line_items
+      WHERE invoice_id = $1
+      "#,
+    )
+    .bind(id)
+    .execute(&self.pool)
+    .await?;
+
+    // Then delete the invoice
+    sqlx::query(
+      r#"
+      DELETE FROM invoices
+      WHERE id = $1
+      "#,
+    )
+    .bind(id)
+    .execute(&self.pool)
+    .await?;
+
+    Ok(())
+  }
 }

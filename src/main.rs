@@ -22,19 +22,22 @@ use taxbyte::{
     SetActiveCompanyUseCase, UpdateBankAccountUseCase, UpdateCompanyProfileUseCase,
   },
   application::invoice::{
-    ArchiveCustomerUseCase, ArchiveInvoiceUseCase, ChangeInvoiceStatusUseCase,
-    CreateCustomerUseCase, CreateInvoiceUseCase, GetInvoiceDetailsUseCase, ListCustomersUseCase,
-    ListInvoicesUseCase, UpdateCustomerUseCase,
+    ArchiveCustomerUseCase, ArchiveInvoiceUseCase, ArchiveTemplateUseCase,
+    ChangeInvoiceStatusUseCase, CreateCustomerUseCase, CreateInvoiceFromTemplateUseCase,
+    CreateInvoiceUseCase, CreateTemplateFromInvoiceUseCase, DeleteInvoiceUseCase,
+    GetInvoiceDetailsUseCase, ListCustomersUseCase, ListInvoicesUseCase, ListTemplatesUseCase,
+    UpdateCustomerUseCase,
   },
   domain::auth::services::AuthService,
   domain::company::services::CompanyService,
-  domain::invoice::InvoiceService,
+  domain::invoice::{InvoiceService, InvoiceServiceDependencies},
   infrastructure::{
     config::Config,
     persistence::postgres::{
       PostgresActiveBankAccountRepository, PostgresActiveCompanyRepository,
       PostgresBankAccountRepository, PostgresCompanyMemberRepository, PostgresCompanyRepository,
       PostgresCustomerRepository, PostgresInvoiceLineItemRepository, PostgresInvoiceRepository,
+      PostgresInvoiceTemplateLineItemRepository, PostgresInvoiceTemplateRepository,
       PostgresLoginAttemptRepository, PostgresSessionRepository, PostgresUserRepository,
     },
     security::{Argon2PasswordHasher, SecureTokenGenerator},
@@ -171,6 +174,10 @@ async fn main() -> std::io::Result<()> {
   let customer_repo = Arc::new(PostgresCustomerRepository::new(db_pool.clone()));
   let invoice_repo = Arc::new(PostgresInvoiceRepository::new(db_pool.clone()));
   let invoice_line_item_repo = Arc::new(PostgresInvoiceLineItemRepository::new(db_pool.clone()));
+  let invoice_template_repo = Arc::new(PostgresInvoiceTemplateRepository::new(db_pool.clone()));
+  let invoice_template_line_item_repo = Arc::new(PostgresInvoiceTemplateLineItemRepository::new(
+    db_pool.clone(),
+  ));
 
   // Initialize security services
   let password_hasher =
@@ -197,14 +204,16 @@ async fn main() -> std::io::Result<()> {
   ));
 
   // Initialize invoice service
-  let invoice_service = Arc::new(InvoiceService::new(
-    invoice_repo.clone(),
-    invoice_line_item_repo.clone(),
-    customer_repo.clone(),
-    company_member_repo.clone(),
-    company_repo.clone(),
-    bank_account_repo.clone(),
-  ));
+  let invoice_service = Arc::new(InvoiceService::new(InvoiceServiceDependencies {
+    invoice_repo: invoice_repo.clone(),
+    line_item_repo: invoice_line_item_repo.clone(),
+    customer_repo: customer_repo.clone(),
+    company_member_repo: company_member_repo.clone(),
+    company_repo: company_repo.clone(),
+    bank_account_repo: bank_account_repo.clone(),
+    template_repo: invoice_template_repo.clone(),
+    template_line_item_repo: invoice_template_line_item_repo.clone(),
+  }));
 
   // Initialize use cases
   let register_use_case = Arc::new(RegisterUserUseCase::new(auth_service.clone()));
@@ -254,6 +263,21 @@ async fn main() -> std::io::Result<()> {
   let change_invoice_status_use_case =
     Arc::new(ChangeInvoiceStatusUseCase::new(invoice_service.clone()));
   let archive_invoice_use_case = Arc::new(ArchiveInvoiceUseCase::new(invoice_service.clone()));
+  let delete_invoice_use_case = Arc::new(DeleteInvoiceUseCase::new(invoice_service.clone()));
+
+  // Initialize template use cases
+  let create_template_from_invoice_use_case = Arc::new(CreateTemplateFromInvoiceUseCase::new(
+    invoice_service.clone(),
+  ));
+  let list_templates_use_case = Arc::new(ListTemplatesUseCase::new(
+    invoice_service.clone(),
+    customer_repo.clone(),
+  ));
+  let create_invoice_from_template_use_case = Arc::new(CreateInvoiceFromTemplateUseCase::new(
+    invoice_service.clone(),
+    create_invoice_use_case.clone(),
+  ));
+  let archive_template_use_case = Arc::new(ArchiveTemplateUseCase::new(invoice_service.clone()));
 
   // Initialize template engine
   let templates = TemplateEngine::new().expect("Failed to initialize template engine");
@@ -294,6 +318,7 @@ async fn main() -> std::io::Result<()> {
             set_active_bank_account_use_case: set_active_bank_account_use_case.clone(),
             user_repo: user_repo.clone(),
             member_repo: company_member_repo.clone(),
+            active_company_repo: active_company_repo.clone(),
             active_bank_account_repo: active_bank_account_repo.clone(),
             // Customer use cases
             create_customer_use_case: create_customer_use_case.clone(),
@@ -306,6 +331,12 @@ async fn main() -> std::io::Result<()> {
             get_invoice_details_use_case: get_invoice_details_use_case.clone(),
             change_invoice_status_use_case: change_invoice_status_use_case.clone(),
             archive_invoice_use_case: archive_invoice_use_case.clone(),
+            delete_invoice_use_case: delete_invoice_use_case.clone(),
+            // Template use cases
+            create_template_from_invoice_use_case: create_template_from_invoice_use_case.clone(),
+            list_templates_use_case: list_templates_use_case.clone(),
+            create_invoice_from_template_use_case: create_invoice_from_template_use_case.clone(),
+            archive_template_use_case: archive_template_use_case.clone(),
           },
         )
       })

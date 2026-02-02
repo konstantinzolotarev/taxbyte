@@ -40,6 +40,15 @@ pub enum InvoiceError {
   #[error("Invalid line item order")]
   InvalidLineItemOrder,
 
+  #[error("Template not found: {0}")]
+  TemplateNotFound(Uuid),
+
+  #[error("Template name '{0}' already exists")]
+  TemplateNameAlreadyExists(String),
+
+  #[error("Cannot delete invoice: {0}")]
+  CannotDeleteInvoice(String),
+
   #[error("PDF generation failed: {0}")]
   PdfGenerationFailed(String),
 

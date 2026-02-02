@@ -7,12 +7,17 @@ use crate::domain::company::ports::{
   BankAccountRepository, CompanyMemberRepository, CompanyRepository,
 };
 
-use super::entities::{Customer, Invoice, InvoiceLineItem, InvoiceTotals};
+use super::entities::{
+  Customer, Invoice, InvoiceLineItem, InvoiceTemplate, InvoiceTemplateLineItem, InvoiceTotals,
+};
 use super::errors::InvoiceError;
-use super::ports::{CustomerRepository, InvoiceLineItemRepository, InvoiceRepository};
+use super::ports::{
+  CustomerRepository, InvoiceLineItemRepository, InvoiceRepository,
+  InvoiceTemplateLineItemRepository, InvoiceTemplateRepository,
+};
 use super::value_objects::{
   Currency, CustomerAddress, CustomerName, InvoiceNumber, InvoiceStatus, LineItemDescription,
-  Money, PaymentTerms, Quantity, VatRate,
+  Money, PaymentTerms, Quantity, TemplateName, VatRate,
 };
 
 /// Invoice creation data
@@ -35,6 +40,18 @@ pub struct InvoiceUpdateData {
   pub line_items: Vec<(LineItemDescription, Quantity, Money, VatRate)>,
 }
 
+/// Dependencies for InvoiceService
+pub struct InvoiceServiceDependencies {
+  pub invoice_repo: Arc<dyn InvoiceRepository>,
+  pub line_item_repo: Arc<dyn InvoiceLineItemRepository>,
+  pub customer_repo: Arc<dyn CustomerRepository>,
+  pub company_member_repo: Arc<dyn CompanyMemberRepository>,
+  pub company_repo: Arc<dyn CompanyRepository>,
+  pub bank_account_repo: Arc<dyn BankAccountRepository>,
+  pub template_repo: Arc<dyn InvoiceTemplateRepository>,
+  pub template_line_item_repo: Arc<dyn InvoiceTemplateLineItemRepository>,
+}
+
 pub struct InvoiceService {
   invoice_repo: Arc<dyn InvoiceRepository>,
   line_item_repo: Arc<dyn InvoiceLineItemRepository>,
@@ -42,24 +59,21 @@ pub struct InvoiceService {
   company_member_repo: Arc<dyn CompanyMemberRepository>,
   company_repo: Arc<dyn CompanyRepository>,
   bank_account_repo: Arc<dyn BankAccountRepository>,
+  template_repo: Arc<dyn InvoiceTemplateRepository>,
+  template_line_item_repo: Arc<dyn InvoiceTemplateLineItemRepository>,
 }
 
 impl InvoiceService {
-  pub fn new(
-    invoice_repo: Arc<dyn InvoiceRepository>,
-    line_item_repo: Arc<dyn InvoiceLineItemRepository>,
-    customer_repo: Arc<dyn CustomerRepository>,
-    company_member_repo: Arc<dyn CompanyMemberRepository>,
-    company_repo: Arc<dyn CompanyRepository>,
-    bank_account_repo: Arc<dyn BankAccountRepository>,
-  ) -> Self {
+  pub fn new(deps: InvoiceServiceDependencies) -> Self {
     Self {
-      invoice_repo,
-      line_item_repo,
-      customer_repo,
-      company_member_repo,
-      company_repo,
-      bank_account_repo,
+      invoice_repo: deps.invoice_repo,
+      line_item_repo: deps.line_item_repo,
+      customer_repo: deps.customer_repo,
+      company_member_repo: deps.company_member_repo,
+      company_repo: deps.company_repo,
+      bank_account_repo: deps.bank_account_repo,
+      template_repo: deps.template_repo,
+      template_line_item_repo: deps.template_line_item_repo,
     }
   }
 
@@ -382,6 +396,30 @@ impl InvoiceService {
     Ok(())
   }
 
+  pub async fn delete_invoice(&self, user_id: Uuid, invoice_id: Uuid) -> Result<(), InvoiceError> {
+    let invoice = self
+      .invoice_repo
+      .find_by_id(invoice_id)
+      .await?
+      .ok_or(InvoiceError::InvoiceNotFound(invoice_id))?;
+
+    // Verify user is company member
+    self
+      .verify_company_membership(user_id, invoice.company_id)
+      .await?;
+
+    // Only allow deleting draft invoices
+    if invoice.status != InvoiceStatus::Draft {
+      return Err(InvoiceError::CannotDeleteInvoice(
+        "Only draft invoices can be deleted. Use archive for other statuses.".to_string(),
+      ));
+    }
+
+    // Delete the invoice (line items will be deleted by the repository via CASCADE)
+    self.invoice_repo.delete(invoice_id).await?;
+    Ok(())
+  }
+
   pub async fn get_invoice(
     &self,
     user_id: Uuid,
@@ -517,6 +555,136 @@ impl InvoiceService {
     }
 
     Ok(updated_invoices)
+  }
+
+  // Template operations
+  pub async fn create_template_from_invoice(
+    &self,
+    user_id: Uuid,
+    invoice_id: Uuid,
+    template_name: TemplateName,
+    description: Option<String>,
+  ) -> Result<(InvoiceTemplate, Vec<InvoiceTemplateLineItem>), InvoiceError> {
+    // Fetch invoice with line items
+    let invoice = self
+      .invoice_repo
+      .find_by_id(invoice_id)
+      .await?
+      .ok_or(InvoiceError::InvoiceNotFound(invoice_id))?;
+
+    let line_items = self.line_item_repo.find_by_invoice_id(invoice_id).await?;
+
+    // Verify user is company member
+    self
+      .verify_company_membership(user_id, invoice.company_id)
+      .await?;
+
+    // Check for duplicate template name
+    if self
+      .template_repo
+      .exists_by_name(invoice.company_id, template_name.value(), None)
+      .await?
+    {
+      return Err(InvoiceError::TemplateNameAlreadyExists(
+        template_name.into_inner(),
+      ));
+    }
+
+    // Create template from invoice data
+    let template = InvoiceTemplate::new(
+      invoice.company_id,
+      template_name,
+      description,
+      invoice.customer_id,
+      invoice.bank_account_id,
+      invoice.payment_terms,
+      invoice.currency,
+    );
+
+    let created_template = self.template_repo.create(template).await?;
+
+    // Create template line items from invoice line items
+    let template_items: Vec<InvoiceTemplateLineItem> = line_items
+      .into_iter()
+      .map(|item| {
+        InvoiceTemplateLineItem::new(
+          created_template.id,
+          item.description,
+          item.quantity,
+          item.unit_price,
+          item.vat_rate,
+          item.line_order,
+        )
+      })
+      .collect();
+
+    let created_items = self
+      .template_line_item_repo
+      .create_many(template_items)
+      .await?;
+
+    Ok((created_template, created_items))
+  }
+
+  pub async fn list_templates(
+    &self,
+    user_id: Uuid,
+    company_id: Uuid,
+    include_archived: bool,
+  ) -> Result<Vec<InvoiceTemplate>, InvoiceError> {
+    self.verify_company_membership(user_id, company_id).await?;
+
+    if include_archived {
+      self.template_repo.find_by_company_id(company_id).await
+    } else {
+      self
+        .template_repo
+        .find_active_by_company_id(company_id)
+        .await
+    }
+  }
+
+  pub async fn get_template_with_items(
+    &self,
+    user_id: Uuid,
+    template_id: Uuid,
+  ) -> Result<(InvoiceTemplate, Vec<InvoiceTemplateLineItem>), InvoiceError> {
+    let template = self
+      .template_repo
+      .find_by_id(template_id)
+      .await?
+      .ok_or(InvoiceError::TemplateNotFound(template_id))?;
+
+    self
+      .verify_company_membership(user_id, template.company_id)
+      .await?;
+
+    let items = self
+      .template_line_item_repo
+      .find_by_template_id(template_id)
+      .await?;
+
+    Ok((template, items))
+  }
+
+  pub async fn archive_template(
+    &self,
+    user_id: Uuid,
+    template_id: Uuid,
+  ) -> Result<(), InvoiceError> {
+    let mut template = self
+      .template_repo
+      .find_by_id(template_id)
+      .await?
+      .ok_or(InvoiceError::TemplateNotFound(template_id))?;
+
+    self
+      .verify_company_membership(user_id, template.company_id)
+      .await?;
+
+    template.archive();
+    self.template_repo.update(template).await?;
+    Ok(())
   }
 
   // Helper methods

@@ -21,6 +21,8 @@ pub enum ValueObjectError {
   InvalidCustomerName(String),
   #[error("Invalid payment terms: {0}")]
   InvalidPaymentTerms(String),
+  #[error("Invalid template name: {0}")]
+  InvalidTemplateName(String),
 }
 
 // Invoice Number - User-editable text field
@@ -400,6 +402,39 @@ impl CustomerName {
 
   pub fn value(&self) -> &str {
     &self.0
+  }
+
+  pub fn into_inner(self) -> String {
+    self.0
+  }
+}
+
+// Template Name - User-friendly identifier for invoice templates
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TemplateName(String);
+
+impl TemplateName {
+  pub fn new(value: String) -> Result<Self, ValueObjectError> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+      return Err(ValueObjectError::InvalidTemplateName(
+        "Template name cannot be empty".to_string(),
+      ));
+    }
+    if trimmed.len() > 255 {
+      return Err(ValueObjectError::InvalidTemplateName(
+        "Template name cannot exceed 255 characters".to_string(),
+      ));
+    }
+    Ok(Self(trimmed.to_string()))
+  }
+
+  pub fn value(&self) -> &str {
+    &self.0
+  }
+
+  pub fn into_inner(self) -> String {
+    self.0
   }
 }
 

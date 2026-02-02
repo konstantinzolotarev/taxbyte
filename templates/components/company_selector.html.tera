@@ -33,7 +33,7 @@
   >
     <!-- HTMX loads dropdown content -->
     <div
-      hx-get="/companies/dropdown"
+      hx-get="/companies/dropdown?company_id={{ company_id | default(value='') }}&current_page={{ current_page | default(value='dashboard') }}"
       hx-trigger="load once"
       hx-indicator="#company-dropdown-spinner"
     >

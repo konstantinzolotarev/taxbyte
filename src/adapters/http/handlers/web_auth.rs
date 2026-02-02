@@ -57,6 +57,12 @@ pub async fn login_submit(
 
   match use_case.execute(command, ip_address, user_agent).await {
     Ok(response) => {
+      tracing::info!("Login successful for user_id={}", response.user_id);
+      tracing::debug!(
+        "Setting session_token cookie (first 10 chars): {}",
+        &response.session_token.chars().take(10).collect::<String>()
+      );
+
       // Create session cookie
       let max_age = if remember_me {
         actix_web::cookie::time::Duration::days(30)

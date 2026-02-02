@@ -14,7 +14,7 @@
             Fill in the invoice details below
           </p>
         </div>
-        <a href="/invoices"
+        <a href="/c/{{ company_id }}/invoices"
           class="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700"
         >
           Cancel
@@ -66,7 +66,7 @@
               </select>
               {% if bank_accounts | length == 0 %}
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                No bank accounts configured. <a href="/companies/{{ company_id }}/bank-accounts" class="text-primary-600 hover:underline">Add one</a>
+                No bank accounts configured. <a href="/c/{{ company_id }}/bank-accounts" class="text-primary-600 hover:underline">Add one</a>
               </p>
               {% endif %}
             </div>
@@ -201,7 +201,7 @@
 
           <!-- Submit Buttons -->
           <div class="mt-6 flex justify-end space-x-3">
-            <a href="/invoices"
+            <a href="/c/{{ company_id }}/invoices"
               class="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700">
               Cancel
             </a>
@@ -294,7 +294,7 @@ function invoiceBuilder() {
       }
 
       try {
-        const response = await fetch('/invoices', {
+        const response = await fetch('/c/{{ company_id }}/invoices', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -304,7 +304,7 @@ function invoiceBuilder() {
 
         if (response.ok) {
           const data = await response.json();
-          window.location.href = `/invoices/${data.invoice_id}`;
+          window.location.href = `/c/{{ company_id }}/invoices/${data.invoice_id}`;
         } else {
           const data = await response.json();
           this.error = data.message || 'Failed to create invoice';

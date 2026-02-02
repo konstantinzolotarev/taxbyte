@@ -9,7 +9,7 @@
     <div class="mb-8">
       <div class="flex justify-between items-center">
         <div class="flex items-center space-x-4">
-          <a href="/invoices" class="text-gray-400 hover:text-gray-500">
+          <a href="/c/{{ company_id }}/invoices" class="text-gray-400 hover:text-gray-500">
             <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
             </svg>
@@ -24,7 +24,7 @@
         <div class="flex space-x-3">
           {% if invoice.status == "draft" %}
           <button
-            hx-post="/invoices/{{ invoice.id }}/status"
+            hx-post="/c/{{ company_id }}/invoices/{{ invoice.id }}/status"
             hx-vals='{"status": "sent"}'
             hx-swap="none"
             class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700">
@@ -32,7 +32,7 @@
           </button>
           {% elif invoice.status == "sent" or invoice.status == "overdue" %}
           <button
-            hx-post="/invoices/{{ invoice.id }}/status"
+            hx-post="/c/{{ company_id }}/invoices/{{ invoice.id }}/status"
             hx-vals='{"status": "paid"}'
             hx-swap="none"
             class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700">
@@ -200,18 +200,42 @@
     <!-- Actions -->
     <div class="mt-6 flex justify-between items-center">
       <div>
+        {% if invoice.status == "draft" %}
         <button
-          hx-delete="/invoices/{{ invoice.id }}/archive"
-          hx-confirm="Are you sure you want to archive this invoice?"
+          hx-delete="/c/{{ company_id }}/invoices/{{ invoice.id }}"
+          hx-confirm="Are you sure you want to permanently delete this draft invoice? This cannot be undone."
           hx-swap="none"
           class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300 text-sm">
+          <svg class="inline-block w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+          </svg>
+          Delete Invoice
+        </button>
+        {% else %}
+        <button
+          hx-delete="/c/{{ company_id }}/invoices/{{ invoice.id }}/archive"
+          hx-confirm="Are you sure you want to archive this invoice?"
+          hx-swap="none"
+          class="text-orange-600 hover:text-orange-900 dark:text-orange-400 dark:hover:text-orange-300 text-sm">
+          <svg class="inline-block w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+          </svg>
           Archive Invoice
         </button>
+        {% endif %}
       </div>
       <div class="flex space-x-3">
+        <button
+          onclick="document.getElementById('saveTemplateModal').classList.remove('hidden')"
+          class="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700">
+          <svg class="-ml-1 mr-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+          </svg>
+          Save as Template
+        </button>
         {% if invoice.status == "draft" or invoice.status == "sent" or invoice.status == "overdue" %}
         <button
-          hx-post="/invoices/{{ invoice.id }}/status"
+          hx-post="/c/{{ company_id }}/invoices/{{ invoice.id }}/status"
           hx-vals='{"status": "cancelled"}'
           hx-confirm="Are you sure you want to cancel this invoice?"
           hx-swap="none"
@@ -219,6 +243,57 @@
           Cancel Invoice
         </button>
         {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Save as Template Modal -->
+  <div id="saveTemplateModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 dark:bg-opacity-75 overflow-y-auto h-full w-full z-50">
+    <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white dark:bg-gray-800">
+      <div class="mt-3">
+        <h3 class="text-lg leading-6 font-medium text-gray-900 dark:text-white">Save as Template</h3>
+        <div class="mt-4">
+          <form hx-post="/c/{{ company_id }}/invoices/{{ invoice.id }}/save-as-template" hx-swap="none">
+            <div class="mb-4">
+              <label for="name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Template Name *
+              </label>
+              <input
+                type="text"
+                id="name"
+                name="name"
+                required
+                class="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white sm:text-sm"
+                placeholder="e.g., Monthly Service Invoice"
+              />
+            </div>
+            <div class="mb-4">
+              <label for="description" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Description (optional)
+              </label>
+              <textarea
+                id="description"
+                name="description"
+                rows="2"
+                class="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white sm:text-sm"
+                placeholder="Notes about this template..."
+              ></textarea>
+            </div>
+            <div class="flex justify-end space-x-3">
+              <button
+                type="button"
+                onclick="document.getElementById('saveTemplateModal').classList.add('hidden')"
+                class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600">
+                Cancel
+              </button>
+              <button
+                type="submit"
+                class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                Save Template
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
     </div>
   </div>

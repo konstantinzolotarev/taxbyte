@@ -1,28 +1,20 @@
-use actix_web::{HttpMessage, HttpRequest, HttpResponse, web};
+use actix_web::{HttpRequest, HttpResponse, web};
 use serde::Deserialize;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use crate::adapters::http::errors::ApiError;
-use crate::adapters::http::templates::TemplateEngine;
+use crate::adapters::http::{
+  errors::ApiError,
+  handlers::{get_company_context, get_user},
+  templates::TemplateEngine,
+};
 use crate::application::company::{
   ArchiveBankAccountCommand, ArchiveBankAccountUseCase, CreateBankAccountCommand,
   CreateBankAccountUseCase, GetBankAccountsCommand, GetBankAccountsUseCase,
   SetActiveBankAccountCommand, SetActiveBankAccountUseCase, UpdateBankAccountCommand,
   UpdateBankAccountUseCase,
 };
-use crate::domain::auth::entities::User;
 use crate::domain::company::ports::ActiveBankAccountRepository;
-
-/// Helper function to extract authenticated user from request
-fn get_user(req: &HttpRequest) -> Result<User, ApiError> {
-  match req.extensions().get::<User>() {
-    Some(user) => Ok(user.clone()),
-    None => Err(ApiError::Auth(
-      crate::adapters::http::errors::AuthErrorKind::InvalidSession,
-    )),
-  }
-}
 
 #[derive(Deserialize)]
 pub struct CreateBankAccountFormData {
@@ -38,20 +30,40 @@ pub struct UpdateBankAccountFormData {
   pub bank_details: Option<String>,
 }
 
-/// GET /companies/:company_id/bank-accounts - Bank accounts page
+/// GET /c/:company_id/bank-accounts - Bank accounts page
 pub async fn bank_accounts_page(
-  company_id: web::Path<Uuid>,
   req: HttpRequest,
   templates: web::Data<TemplateEngine>,
   get_accounts_use_case: web::Data<Arc<GetBankAccountsUseCase>>,
   active_bank_account_repo: web::Data<Arc<dyn ActiveBankAccountRepository>>,
+  get_companies_use_case: web::Data<Arc<crate::application::company::GetUserCompaniesUseCase>>,
 ) -> Result<HttpResponse, ApiError> {
   let user = get_user(&req)?;
+  let company_context = get_company_context(&req)?;
+  let company_id = company_context.company_id;
+
+  // Fetch user's companies for the navbar selector
+  let companies_response = get_companies_use_case
+    .execute(crate::application::company::GetUserCompaniesCommand { user_id: user.id })
+    .await?;
+
+  // Find current company from the list for the selector
+  let active_company = companies_response
+    .companies
+    .iter()
+    .find(|c| c.company_id == company_id)
+    .map(|c| {
+      serde_json::json!({
+        "company_id": c.company_id,
+        "name": c.name,
+        "role": c.role,
+      })
+    });
 
   // Get accounts
   let response = get_accounts_use_case
     .execute(GetBankAccountsCommand {
-      company_id: *company_id,
+      company_id,
       requester_id: user.id,
       include_archived: false,
     })
@@ -59,14 +71,17 @@ pub async fn bank_accounts_page(
 
   // Get active bank account ID
   let active_account_id = active_bank_account_repo
-    .get_active(*company_id)
+    .get_active(company_id)
     .await
     .ok()
     .flatten();
 
   let mut context = tera::Context::new();
   context.insert("user", &user);
+  context.insert("companies", &companies_response.companies);
+  context.insert("active_company", &active_company);
   context.insert("company_id", &company_id.to_string());
+  context.insert("current_page", "bank-accounts");
   context.insert("accounts", &response.accounts);
   context.insert("active_account_id", &active_account_id);
 
@@ -77,15 +92,16 @@ pub async fn bank_accounts_page(
   Ok(HttpResponse::Ok().content_type("text/html").body(html))
 }
 
-/// POST /companies/:company_id/bank-accounts/create - Create bank account form submission
+/// POST /c/:company_id/bank-accounts/create - Create bank account form submission
 pub async fn create_bank_account_submit(
-  company_id: web::Path<Uuid>,
   req: HttpRequest,
   form: web::Form<CreateBankAccountFormData>,
   templates: web::Data<TemplateEngine>,
   create_use_case: web::Data<Arc<CreateBankAccountUseCase>>,
 ) -> Result<HttpResponse, ApiError> {
   let user = get_user(&req)?;
+  let company_context = get_company_context(&req)?;
+  let company_id = company_context.company_id;
 
   // Validate
   let name = form.name.trim();
@@ -112,7 +128,7 @@ pub async fn create_bank_account_submit(
 
   // Execute command
   let command = CreateBankAccountCommand {
-    company_id: *company_id,
+    company_id,
     requester_id: user.id,
     name: name.to_string(),
     iban: iban.to_string(),
@@ -128,10 +144,7 @@ pub async fn create_bank_account_submit(
       // Redirect back to bank accounts page
       Ok(
         HttpResponse::Ok()
-          .insert_header((
-            "HX-Redirect",
-            format!("/companies/{}/bank-accounts", company_id),
-          ))
+          .insert_header(("HX-Redirect", format!("/c/{}/bank-accounts", company_id)))
           .finish(),
       )
     }
@@ -156,15 +169,17 @@ pub async fn create_bank_account_submit(
   }
 }
 
-/// POST /companies/:company_id/bank-accounts/:account_id/update - Update bank account
+/// POST /c/:company_id/bank-accounts/:account_id/update - Update bank account
 pub async fn update_bank_account_submit(
-  path: web::Path<(Uuid, Uuid)>,
+  path: web::Path<Uuid>,
   req: HttpRequest,
   form: web::Form<UpdateBankAccountFormData>,
   update_use_case: web::Data<Arc<UpdateBankAccountUseCase>>,
 ) -> Result<HttpResponse, ApiError> {
   let user = get_user(&req)?;
-  let (company_id, account_id) = path.into_inner();
+  let company_context = get_company_context(&req)?;
+  let company_id = company_context.company_id;
+  let account_id = path.into_inner();
 
   let command = UpdateBankAccountCommand {
     company_id,
@@ -183,22 +198,21 @@ pub async fn update_bank_account_submit(
 
   Ok(
     HttpResponse::Ok()
-      .insert_header((
-        "HX-Redirect",
-        format!("/companies/{}/bank-accounts", company_id),
-      ))
+      .insert_header(("HX-Redirect", format!("/c/{}/bank-accounts", company_id)))
       .finish(),
   )
 }
 
-/// POST /companies/:company_id/bank-accounts/:account_id/archive - Archive bank account
+/// DELETE /c/:company_id/bank-accounts/:account_id/archive - Archive bank account
 pub async fn archive_bank_account_handler(
-  path: web::Path<(Uuid, Uuid)>,
+  path: web::Path<Uuid>,
   req: HttpRequest,
   archive_use_case: web::Data<Arc<ArchiveBankAccountUseCase>>,
 ) -> Result<HttpResponse, ApiError> {
   let user = get_user(&req)?;
-  let (company_id, account_id) = path.into_inner();
+  let company_context = get_company_context(&req)?;
+  let company_id = company_context.company_id;
+  let account_id = path.into_inner();
 
   let command = ArchiveBankAccountCommand {
     company_id,
@@ -210,22 +224,21 @@ pub async fn archive_bank_account_handler(
 
   Ok(
     HttpResponse::Ok()
-      .insert_header((
-        "HX-Redirect",
-        format!("/companies/{}/bank-accounts", company_id),
-      ))
+      .insert_header(("HX-Redirect", format!("/c/{}/bank-accounts", company_id)))
       .finish(),
   )
 }
 
-/// POST /companies/:company_id/bank-accounts/:account_id/set-active - Set active bank account
+/// POST /c/:company_id/bank-accounts/:account_id/set-active - Set active bank account
 pub async fn set_active_bank_account_handler(
-  path: web::Path<(Uuid, Uuid)>,
+  path: web::Path<Uuid>,
   req: HttpRequest,
   set_active_use_case: web::Data<Arc<SetActiveBankAccountUseCase>>,
 ) -> Result<HttpResponse, ApiError> {
   let user = get_user(&req)?;
-  let (company_id, account_id) = path.into_inner();
+  let company_context = get_company_context(&req)?;
+  let company_id = company_context.company_id;
+  let account_id = path.into_inner();
 
   let command = SetActiveBankAccountCommand {
     company_id,
@@ -237,10 +250,7 @@ pub async fn set_active_bank_account_handler(
 
   Ok(
     HttpResponse::Ok()
-      .insert_header((
-        "HX-Redirect",
-        format!("/companies/{}/bank-accounts", company_id),
-      ))
+      .insert_header(("HX-Redirect", format!("/c/{}/bank-accounts", company_id)))
       .finish(),
   )
 }
