@@ -507,10 +507,13 @@ mod tests {
 
   #[test]
   fn test_invoice_number() {
-    assert!(InvoiceNumber::new(1).is_ok());
-    assert!(InvoiceNumber::new(0).is_err());
-    assert!(InvoiceNumber::new(-1).is_err());
-    assert_eq!(InvoiceNumber::new(5).unwrap().to_string(), "#5");
+    assert!(InvoiceNumber::new("INV-001".to_string()).is_ok());
+    assert!(InvoiceNumber::new("".to_string()).is_err());
+    assert!(InvoiceNumber::new("INV-123".to_string()).is_ok());
+    assert_eq!(
+      InvoiceNumber::new("INV-005".to_string()).unwrap().to_string(),
+      "INV-005"
+    );
   }
 
   #[test]

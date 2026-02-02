@@ -248,13 +248,14 @@ mod tests {
 
   #[test]
   fn test_extract_company_id_valid() {
-    let company_id = Uuid::new_v4();
+    let company_id_str = "550e8400-e29b-41d4-a716-446655440000";
+    let expected_id = Uuid::parse_str(company_id_str).unwrap();
     let req = TestRequest::default()
-      .param("company_id", &company_id.to_string())
+      .param("company_id", company_id_str)
       .to_srv_request();
 
     let extracted = extract_company_id(&req).unwrap();
-    assert_eq!(extracted, company_id);
+    assert_eq!(extracted, expected_id);
   }
 
   #[test]
