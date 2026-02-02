@@ -498,6 +498,10 @@ pub async fn create_from_template_page(
   context.insert("company_id", &company_id.to_string());
   context.insert("current_page", "invoices");
   context.insert("user", &user);
+  context.insert(
+    "today",
+    &chrono::Local::now().format("%Y-%m-%d").to_string(),
+  );
 
   let html = templates
     .render("pages/invoice_create_from_template.html.tera", &context)
