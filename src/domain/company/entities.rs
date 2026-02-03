@@ -10,7 +10,7 @@ use super::value_objects::{
 use crate::domain::auth::value_objects::Email;
 
 /// Company entity representing a business organization
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Company {
   pub id: Uuid,
   pub name: String,
@@ -58,7 +58,7 @@ impl Company {
 }
 
 /// Company profile fields for updates
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct CompanyProfileUpdate {
   pub email: Option<Email>,
   pub phone: Option<PhoneNumber>,
@@ -68,7 +68,7 @@ pub struct CompanyProfileUpdate {
 }
 
 /// Company member representing user membership in a company
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CompanyMember {
   pub company_id: Uuid,
   pub user_id: Uuid,
@@ -112,6 +112,7 @@ impl CompanyMember {
 
 /// Company role enum
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum CompanyRole {
   Owner,
   Admin,
@@ -144,7 +145,7 @@ impl TryFrom<&str> for CompanyRole {
 }
 
 /// Active company selection for a user
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ActiveCompany {
   pub user_id: Uuid,
   pub company_id: Uuid,
@@ -170,7 +171,7 @@ impl ActiveCompany {
 }
 
 /// Bank account entity representing a company's bank account
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct BankAccount {
   pub id: Uuid,
   pub company_id: Uuid,
@@ -242,7 +243,7 @@ impl BankAccount {
 }
 
 /// Active bank account for a company
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ActiveBankAccount {
   pub company_id: Uuid,
   pub bank_account_id: Uuid,

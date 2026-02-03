@@ -171,15 +171,22 @@ pub async fn create_bank_account_submit(
 
 /// POST /c/:company_id/bank-accounts/:account_id/update - Update bank account
 pub async fn update_bank_account_submit(
-  path: web::Path<Uuid>,
+  path: web::Path<(Uuid, Uuid)>,
   req: HttpRequest,
   form: web::Form<UpdateBankAccountFormData>,
   update_use_case: web::Data<Arc<UpdateBankAccountUseCase>>,
 ) -> Result<HttpResponse, ApiError> {
   let user = get_user(&req)?;
   let company_context = get_company_context(&req)?;
-  let company_id = company_context.company_id;
-  let account_id = path.into_inner();
+
+  let (company_id, account_id) = path.into_inner();
+
+  // Verify the company_id from URL matches the context
+  if company_id != company_context.company_id {
+    return Err(ApiError::Auth(
+      crate::adapters::http::errors::AuthErrorKind::Forbidden,
+    ));
+  }
 
   let command = UpdateBankAccountCommand {
     company_id,
@@ -205,14 +212,21 @@ pub async fn update_bank_account_submit(
 
 /// DELETE /c/:company_id/bank-accounts/:account_id/archive - Archive bank account
 pub async fn archive_bank_account_handler(
-  path: web::Path<Uuid>,
+  path: web::Path<(Uuid, Uuid)>,
   req: HttpRequest,
   archive_use_case: web::Data<Arc<ArchiveBankAccountUseCase>>,
 ) -> Result<HttpResponse, ApiError> {
   let user = get_user(&req)?;
   let company_context = get_company_context(&req)?;
-  let company_id = company_context.company_id;
-  let account_id = path.into_inner();
+
+  let (company_id, account_id) = path.into_inner();
+
+  // Verify the company_id from URL matches the context
+  if company_id != company_context.company_id {
+    return Err(ApiError::Auth(
+      crate::adapters::http::errors::AuthErrorKind::Forbidden,
+    ));
+  }
 
   let command = ArchiveBankAccountCommand {
     company_id,
@@ -231,14 +245,21 @@ pub async fn archive_bank_account_handler(
 
 /// POST /c/:company_id/bank-accounts/:account_id/set-active - Set active bank account
 pub async fn set_active_bank_account_handler(
-  path: web::Path<Uuid>,
+  path: web::Path<(Uuid, Uuid)>,
   req: HttpRequest,
   set_active_use_case: web::Data<Arc<SetActiveBankAccountUseCase>>,
 ) -> Result<HttpResponse, ApiError> {
   let user = get_user(&req)?;
   let company_context = get_company_context(&req)?;
-  let company_id = company_context.company_id;
-  let account_id = path.into_inner();
+
+  let (company_id, account_id) = path.into_inner();
+
+  // Verify the company_id from URL matches the context
+  if company_id != company_context.company_id {
+    return Err(ApiError::Auth(
+      crate::adapters::http::errors::AuthErrorKind::Forbidden,
+    ));
+  }
 
   let command = SetActiveBankAccountCommand {
     company_id,

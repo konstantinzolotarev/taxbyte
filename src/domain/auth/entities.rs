@@ -4,7 +4,7 @@ use std::net::IpAddr;
 use uuid::Uuid;
 
 /// User entity representing a user in the system
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct User {
   /// Unique identifier for the user
   pub id: Uuid,
@@ -28,6 +28,8 @@ pub struct User {
   pub created_at: DateTime<Utc>,
   /// Timestamp when the user was last updated
   pub updated_at: DateTime<Utc>,
+  /// Timestamp when the user was soft deleted (None if active)
+  pub deleted_at: Option<DateTime<Utc>>,
 }
 
 impl User {
@@ -46,6 +48,7 @@ impl User {
       password_reset_token_expires_at: None,
       created_at: now,
       updated_at: now,
+      deleted_at: None,
     }
   }
 
@@ -63,6 +66,7 @@ impl User {
     password_reset_token_expires_at: Option<DateTime<Utc>>,
     created_at: DateTime<Utc>,
     updated_at: DateTime<Utc>,
+    deleted_at: Option<DateTime<Utc>>,
   ) -> Self {
     Self {
       id,
@@ -76,6 +80,7 @@ impl User {
       password_reset_token_expires_at,
       created_at,
       updated_at,
+      deleted_at,
     }
   }
 
@@ -151,7 +156,7 @@ impl User {
 }
 
 /// Session entity representing an active user session
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Session {
   /// Unique identifier for the session
   pub id: Uuid,

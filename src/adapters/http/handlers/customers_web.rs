@@ -132,18 +132,25 @@ pub struct UpdateCustomerForm {
   country: Option<String>,
 }
 
-// POST /customers/{id}/edit - Update a customer
+// POST /c/{company_id}/customers/{id}/edit - Update a customer
 pub async fn update_customer_submit(
   req: HttpRequest,
-  path: web::Path<Uuid>,
+  path: web::Path<(Uuid, Uuid)>,
   form: web::Form<UpdateCustomerForm>,
   templates: web::Data<TemplateEngine>,
   update_customer_use_case: web::Data<Arc<UpdateCustomerUseCase>>,
 ) -> Result<HttpResponse, ApiError> {
   let user = get_user(&req)?;
   let company_context = get_company_context(&req)?;
-  let company_id = company_context.company_id;
-  let customer_id = path.into_inner();
+
+  let (company_id, customer_id) = path.into_inner();
+
+  // Verify the company_id from URL matches the context
+  if company_id != company_context.company_id {
+    return Err(ApiError::Auth(
+      crate::adapters::http::errors::AuthErrorKind::Forbidden,
+    ));
+  }
 
   match update_customer_use_case
     .execute(UpdateCustomerCommand {
@@ -182,14 +189,23 @@ pub async fn update_customer_submit(
   }
 }
 
-// DELETE /customers/{id}/archive - Archive a customer
+// DELETE /c/{company_id}/customers/{id}/archive - Archive a customer
 pub async fn archive_customer(
   req: HttpRequest,
-  path: web::Path<Uuid>,
+  path: web::Path<(Uuid, Uuid)>,
   archive_customer_use_case: web::Data<Arc<ArchiveCustomerUseCase>>,
 ) -> Result<HttpResponse, ApiError> {
   let user = get_user(&req)?;
-  let customer_id = path.into_inner();
+  let company_context = get_company_context(&req)?;
+
+  let (company_id, customer_id) = path.into_inner();
+
+  // Verify the company_id from URL matches the context
+  if company_id != company_context.company_id {
+    return Err(ApiError::Auth(
+      crate::adapters::http::errors::AuthErrorKind::Forbidden,
+    ));
+  }
 
   archive_customer_use_case
     .execute(ArchiveCustomerCommand {
@@ -200,7 +216,7 @@ pub async fn archive_customer(
 
   Ok(
     HttpResponse::Ok()
-      .insert_header(("HX-Redirect", "/customers"))
+      .insert_header(("HX-Redirect", format!("/c/{}/customers", company_id)))
       .finish(),
   )
 }

@@ -60,9 +60,22 @@ impl fmt::Display for InvoiceNumber {
   }
 }
 
+impl AsRef<str> for InvoiceNumber {
+  fn as_ref(&self) -> &str {
+    &self.0
+  }
+}
+
+impl From<InvoiceNumber> for String {
+  fn from(number: InvoiceNumber) -> Self {
+    number.0
+  }
+}
+
 // Invoice Status
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
+#[non_exhaustive]
 pub enum InvoiceStatus {
   Draft,
   Sent,
@@ -104,6 +117,12 @@ impl InvoiceStatus {
   }
 }
 
+impl std::fmt::Display for InvoiceStatus {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    write!(f, "{}", self.as_str())
+  }
+}
+
 impl FromStr for InvoiceStatus {
   type Err = ValueObjectError;
 
@@ -124,6 +143,7 @@ impl FromStr for InvoiceStatus {
 
 // Currency - ISO 4217
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum Currency {
   USD,
   EUR,
@@ -228,6 +248,7 @@ impl fmt::Display for Money {
 
 // Payment Terms
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum PaymentTerms {
   DueOnReceipt,
   Net15,
@@ -409,6 +430,18 @@ impl CustomerName {
   }
 }
 
+impl AsRef<str> for CustomerName {
+  fn as_ref(&self) -> &str {
+    &self.0
+  }
+}
+
+impl From<CustomerName> for String {
+  fn from(name: CustomerName) -> Self {
+    name.0
+  }
+}
+
 // Template Name - User-friendly identifier for invoice templates
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TemplateName(String);
@@ -435,6 +468,18 @@ impl TemplateName {
 
   pub fn into_inner(self) -> String {
     self.0
+  }
+}
+
+impl AsRef<str> for TemplateName {
+  fn as_ref(&self) -> &str {
+    &self.0
+  }
+}
+
+impl From<TemplateName> for String {
+  fn from(name: TemplateName) -> Self {
+    name.0
   }
 }
 
@@ -511,7 +556,9 @@ mod tests {
     assert!(InvoiceNumber::new("".to_string()).is_err());
     assert!(InvoiceNumber::new("INV-123".to_string()).is_ok());
     assert_eq!(
-      InvoiceNumber::new("INV-005".to_string()).unwrap().to_string(),
+      InvoiceNumber::new("INV-005".to_string())
+        .unwrap()
+        .to_string(),
       "INV-005"
     );
   }

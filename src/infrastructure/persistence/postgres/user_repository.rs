@@ -36,6 +36,7 @@ struct UserRow {
   password_reset_token_expires_at: Option<DateTime<Utc>>,
   created_at: DateTime<Utc>,
   updated_at: DateTime<Utc>,
+  deleted_at: Option<DateTime<Utc>>,
 }
 
 impl From<UserRow> for User {
@@ -52,6 +53,7 @@ impl From<UserRow> for User {
       row.password_reset_token_expires_at,
       row.created_at,
       row.updated_at,
+      row.deleted_at,
     )
   }
 }
@@ -72,9 +74,10 @@ impl UserRepository for PostgresUserRepository {
                 password_reset_token,
                 password_reset_token_expires_at,
                 created_at,
-                updated_at
+                updated_at,
+                deleted_at
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
             RETURNING
                 id,
                 email,
@@ -86,7 +89,8 @@ impl UserRepository for PostgresUserRepository {
                 password_reset_token,
                 password_reset_token_expires_at,
                 created_at,
-                updated_at
+                updated_at,
+                deleted_at
             "#,
     )
     .bind(user.id)
@@ -100,6 +104,7 @@ impl UserRepository for PostgresUserRepository {
     .bind(user.password_reset_token_expires_at)
     .bind(user.created_at)
     .bind(user.updated_at)
+    .bind(user.deleted_at)
     .fetch_one(&self.pool)
     .await?;
 
@@ -120,9 +125,10 @@ impl UserRepository for PostgresUserRepository {
                 password_reset_token,
                 password_reset_token_expires_at,
                 created_at,
-                updated_at
+                updated_at,
+                deleted_at
             FROM users
-            WHERE id = $1
+            WHERE id = $1 AND deleted_at IS NULL
             "#,
     )
     .bind(id)
@@ -132,9 +138,7 @@ impl UserRepository for PostgresUserRepository {
     match result {
       Ok(Some(row)) => Ok(Some(row.into())),
       Ok(None) => Ok(None),
-      Err(e) => Err(AuthError::Repository(RepositoryError::QueryFailed(
-        e.to_string(),
-      ))),
+      Err(e) => Err(e.into()),
     }
   }
 
@@ -152,9 +156,10 @@ impl UserRepository for PostgresUserRepository {
                 password_reset_token,
                 password_reset_token_expires_at,
                 created_at,
-                updated_at
+                updated_at,
+                deleted_at
             FROM users
-            WHERE email = $1
+            WHERE email = $1 AND deleted_at IS NULL
             "#,
     )
     .bind(email.as_str())
@@ -164,9 +169,7 @@ impl UserRepository for PostgresUserRepository {
     match result {
       Ok(Some(row)) => Ok(Some(row.into())),
       Ok(None) => Ok(None),
-      Err(e) => Err(AuthError::Repository(RepositoryError::QueryFailed(
-        e.to_string(),
-      ))),
+      Err(e) => Err(e.into()),
     }
   }
 
@@ -184,7 +187,7 @@ impl UserRepository for PostgresUserRepository {
                 password_reset_token = $8,
                 password_reset_token_expires_at = $9,
                 updated_at = $10
-            WHERE id = $1
+            WHERE id = $1 AND deleted_at IS NULL
             RETURNING
                 id,
                 email,
@@ -196,7 +199,8 @@ impl UserRepository for PostgresUserRepository {
                 password_reset_token,
                 password_reset_token_expires_at,
                 created_at,
-                updated_at
+                updated_at,
+                deleted_at
             "#,
     )
     .bind(user.id)
@@ -225,27 +229,18 @@ impl UserRepository for PostgresUserRepository {
           )))
         }
       }
-      Err(e) => Err(AuthError::Repository(RepositoryError::QueryFailed(
-        e.to_string(),
-      ))),
+      Err(e) => Err(e.into()),
     }
   }
 
   async fn soft_delete(&self, id: Uuid) -> Result<(), AuthError> {
-    // Note: Since the schema doesn't have a deleted_at column,
-    // we'll implement soft delete by clearing sensitive data and marking email as unverified
-    // In a production environment, you might want to add a deleted_at column to the schema
     let result = sqlx::query(
       r#"
             UPDATE users
             SET
-                is_email_verified = false,
-                email_verification_token = NULL,
-                email_verification_token_expires_at = NULL,
-                password_reset_token = NULL,
-                password_reset_token_expires_at = NULL,
+                deleted_at = NOW(),
                 updated_at = NOW()
-            WHERE id = $1
+            WHERE id = $1 AND deleted_at IS NULL
             "#,
     )
     .bind(id)
@@ -260,9 +255,7 @@ impl UserRepository for PostgresUserRepository {
           Ok(())
         }
       }
-      Err(e) => Err(AuthError::Repository(RepositoryError::QueryFailed(
-        e.to_string(),
-      ))),
+      Err(e) => Err(e.into()),
     }
   }
 }
@@ -398,7 +391,7 @@ mod tests {
   #[tokio::test]
   async fn test_soft_delete() {
     let (pool, _container) = setup_test_db().await;
-    let repo = PostgresUserRepository::new(pool);
+    let repo = PostgresUserRepository::new(pool.clone());
 
     let user = User::new(
       "delete@example.com".to_string(),
@@ -411,11 +404,23 @@ mod tests {
 
     assert!(result.is_ok());
 
-    // Verify the user still exists but tokens are cleared
+    // Verify the user is no longer found by normal queries (filtered by deleted_at IS NULL)
     let found_user = repo.find_by_id(created_user.id).await.unwrap();
-    assert!(found_user.is_some());
-    let user = found_user.unwrap();
-    assert!(user.email_verification_token.is_none());
-    assert!(user.password_reset_token.is_none());
+    assert!(found_user.is_none());
+
+    // Verify the user still physically exists in the database with deleted_at set
+    let raw_user = sqlx::query_as::<_, UserRow>(
+      "SELECT id, email, password_hash, full_name, is_email_verified,
+       email_verification_token, email_verification_token_expires_at,
+       password_reset_token, password_reset_token_expires_at,
+       created_at, updated_at, deleted_at
+       FROM users WHERE id = $1",
+    )
+    .bind(created_user.id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+
+    assert!(raw_user.deleted_at.is_some());
   }
 }

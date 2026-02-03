@@ -134,6 +134,7 @@ where
         None,
         user_response.created_at,
         chrono::Utc::now(), // Updated at not needed
+        None,               // Deleted at (authenticated users are not deleted)
       );
 
       // Attach user to request extensions

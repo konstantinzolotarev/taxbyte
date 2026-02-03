@@ -76,13 +76,3 @@ impl RegisterUserUseCase {
     })
   }
 }
-
-#[cfg(test)]
-mod tests {
-
-  #[tokio::test]
-  async fn test_placeholder() {
-    // This test would require mock implementations of AuthService
-    // For now, this is just a placeholder to show the test structure
-  }
-}

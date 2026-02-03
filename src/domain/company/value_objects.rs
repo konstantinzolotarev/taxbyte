@@ -30,6 +30,18 @@ impl CompanyName {
   }
 }
 
+impl AsRef<str> for CompanyName {
+  fn as_ref(&self) -> &str {
+    &self.0
+  }
+}
+
+impl From<CompanyName> for String {
+  fn from(name: CompanyName) -> Self {
+    name.0
+  }
+}
+
 /// Company address value object (structured)
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CompanyAddress {
@@ -143,6 +155,18 @@ impl PhoneNumber {
   }
 }
 
+impl AsRef<str> for PhoneNumber {
+  fn as_ref(&self) -> &str {
+    &self.0
+  }
+}
+
+impl From<PhoneNumber> for String {
+  fn from(phone: PhoneNumber) -> Self {
+    phone.0
+  }
+}
+
 /// Registry code value object with minimal validation
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RegistryCode(String);
@@ -171,6 +195,18 @@ impl RegistryCode {
   }
 }
 
+impl AsRef<str> for RegistryCode {
+  fn as_ref(&self) -> &str {
+    &self.0
+  }
+}
+
+impl From<RegistryCode> for String {
+  fn from(code: RegistryCode) -> Self {
+    code.0
+  }
+}
+
 /// VAT number value object with minimal validation
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct VatNumber(String);
@@ -196,6 +232,18 @@ impl VatNumber {
 
   pub fn into_inner(self) -> String {
     self.0
+  }
+}
+
+impl AsRef<str> for VatNumber {
+  fn as_ref(&self) -> &str {
+    &self.0
+  }
+}
+
+impl From<VatNumber> for String {
+  fn from(vat: VatNumber) -> Self {
+    vat.0
   }
 }
 
@@ -231,6 +279,18 @@ impl BankAccountName {
 
   pub fn into_inner(self) -> String {
     self.0
+  }
+}
+
+impl AsRef<str> for BankAccountName {
+  fn as_ref(&self) -> &str {
+    &self.0
+  }
+}
+
+impl From<BankAccountName> for String {
+  fn from(name: BankAccountName) -> Self {
+    name.0
   }
 }
 
@@ -349,6 +409,18 @@ impl Iban {
   }
 }
 
+impl AsRef<str> for Iban {
+  fn as_ref(&self) -> &str {
+    &self.0
+  }
+}
+
+impl From<Iban> for String {
+  fn from(iban: Iban) -> Self {
+    iban.0
+  }
+}
+
 /// Bank details value object (optional textarea)
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BankDetails(String);
@@ -378,5 +450,17 @@ impl BankDetails {
 
   pub fn is_empty(&self) -> bool {
     self.0.is_empty()
+  }
+}
+
+impl AsRef<str> for BankDetails {
+  fn as_ref(&self) -> &str {
+    &self.0
+  }
+}
+
+impl From<BankDetails> for String {
+  fn from(details: BankDetails) -> Self {
+    details.0
   }
 }

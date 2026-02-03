@@ -36,6 +36,29 @@ pub enum AuthError {
   ValueObject(#[from] ValueObjectError),
 }
 
+impl AuthError {
+  /// Helper to create an InvalidField validation error
+  ///
+  /// This reduces verbosity when constructing validation errors for invalid fields.
+  ///
+  /// # Example
+  ///
+  /// ```ignore
+  /// // Instead of:
+  /// AuthError::Validation(ValidationError::InvalidField {
+  ///   field: format!("session_token: {}", e),
+  /// })
+  ///
+  /// // Use:
+  /// AuthError::invalid_field(format!("session_token: {}", e))
+  /// ```
+  pub fn invalid_field(field: impl Into<String>) -> Self {
+    AuthError::Validation(ValidationError::InvalidField {
+      field: field.into(),
+    })
+  }
+}
+
 /// Repository-related errors
 #[derive(Debug, Error)]
 pub enum RepositoryError {
@@ -132,14 +155,9 @@ impl From<sqlx::Error> for AuthError {
 }
 
 impl From<argon2::password_hash::Error> for ValueObjectError {
-  fn from(error: argon2::password_hash::Error) -> Self {
-    use argon2::password_hash::Error;
-    match error {
-      Error::Password => ValueObjectError::VerificationFailed("Invalid password".to_string()),
-      // Hash parsing/format errors
-      Error::PhcStringField | Error::PhcStringTrailingData => ValueObjectError::InvalidPasswordHash,
-      // All other errors are hashing/verification failures
-      _ => ValueObjectError::HashingFailed(error.to_string()),
-    }
+  fn from(_error: argon2::password_hash::Error) -> Self {
+    // Only used for hash format validation in PasswordHash::from_hash()
+    // All argon2 parsing errors are invalid hash format errors
+    ValueObjectError::InvalidPasswordHash
   }
 }

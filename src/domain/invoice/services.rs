@@ -320,14 +320,12 @@ impl InvoiceService {
     }
 
     // Update invoice
-    invoice
-      .update(
-        data.customer_id,
-        data.bank_account_id,
-        data.invoice_date,
-        data.payment_terms,
-      )
-      .map_err(InvoiceError::CannotEditInvoice)?;
+    invoice.update(
+      data.customer_id,
+      data.bank_account_id,
+      data.invoice_date,
+      data.payment_terms,
+    )?;
 
     let updated_invoice = self.invoice_repo.update(invoice).await?;
 
@@ -372,9 +370,7 @@ impl InvoiceService {
       .verify_company_membership(user_id, invoice.company_id)
       .await?;
 
-    invoice
-      .change_status(new_status)
-      .map_err(InvoiceError::InvalidStatusTransition)?;
+    invoice.change_status(new_status)?;
 
     self.invoice_repo.update(invoice).await
   }
@@ -546,9 +542,7 @@ impl InvoiceService {
     let mut updated_invoices = Vec::new();
     for mut invoice in overdue_invoices {
       if invoice.is_overdue(current_date) {
-        invoice
-          .change_status(InvoiceStatus::Overdue)
-          .map_err(InvoiceError::InvalidStatusTransition)?;
+        invoice.change_status(InvoiceStatus::Overdue)?;
         let updated = self.invoice_repo.update(invoice).await?;
         updated_invoices.push(updated);
       }

@@ -1,10 +1,10 @@
-use argon2::password_hash::SaltString;
-use argon2::{Argon2, PasswordHash as Argon2PasswordHash, PasswordHasher, PasswordVerifier};
+use argon2::PasswordHash as Argon2PasswordHash;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use thiserror::Error;
 use uuid::Uuid;
 use validator::ValidateEmail;
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 // ============================================================================
 // Error Types
@@ -23,12 +23,6 @@ pub enum ValueObjectError {
 
   #[error("Invalid password hash format")]
   InvalidPasswordHash,
-
-  #[error("Password hashing failed: {0}")]
-  HashingFailed(String),
-
-  #[error("Password verification failed: {0}")]
-  VerificationFailed(String),
 
   #[error("Invalid token format")]
   InvalidToken,
@@ -80,11 +74,17 @@ impl AsRef<str> for Email {
   }
 }
 
+impl From<Email> for String {
+  fn from(email: Email) -> Self {
+    email.0
+  }
+}
+
 // ============================================================================
 // Password Value Object (Plain Password - Never Stored)
 // ============================================================================
 
-#[derive(Clone)]
+#[derive(Clone, Zeroize, ZeroizeOnDrop)]
 pub struct Password(String);
 
 impl Password {
@@ -104,16 +104,6 @@ impl Password {
     }
 
     Ok(Self(password))
-  }
-
-  /// Hashes the password using Argon2id
-  pub fn hash(&self) -> Result<PasswordHash, ValueObjectError> {
-    let salt = SaltString::generate(&mut rand::rngs::OsRng);
-    let argon2 = Argon2::default();
-
-    let hash = argon2.hash_password(self.0.as_bytes(), &salt)?;
-
-    Ok(PasswordHash(hash.to_string()))
   }
 
   /// Returns the password as a string slice (use with caution)
@@ -136,16 +126,7 @@ impl fmt::Display for Password {
   }
 }
 
-// Ensure Password is securely dropped
-impl Drop for Password {
-  fn drop(&mut self) {
-    // Zero out the password memory
-    use std::ptr;
-    unsafe {
-      ptr::write_volatile(self.0.as_mut_ptr(), 0u8.wrapping_mul(self.0.len() as u8));
-    }
-  }
-}
+// Note: Password is automatically securely zeroed on drop via ZeroizeOnDrop derive
 
 // ============================================================================
 // PasswordHash Value Object (Argon2id Hash)
@@ -165,19 +146,6 @@ impl PasswordHash {
     Ok(Self(hash))
   }
 
-  /// Verifies a password against this hash
-  pub fn verify(&self, password: &Password) -> Result<bool, ValueObjectError> {
-    let parsed_hash = Argon2PasswordHash::new(&self.0)?;
-
-    let argon2 = Argon2::default();
-
-    Ok(
-      argon2
-        .verify_password(password.as_str().as_bytes(), &parsed_hash)
-        .is_ok(),
-    )
-  }
-
   /// Returns the hash as a string slice
   pub fn as_str(&self) -> &str {
     &self.0
@@ -195,11 +163,23 @@ impl fmt::Display for PasswordHash {
   }
 }
 
+impl AsRef<str> for PasswordHash {
+  fn as_ref(&self) -> &str {
+    &self.0
+  }
+}
+
+impl From<PasswordHash> for String {
+  fn from(hash: PasswordHash) -> Self {
+    hash.0
+  }
+}
+
 // ============================================================================
 // SessionToken Value Object (Random Secure Token)
 // ============================================================================
 
-#[derive(Clone)]
+#[derive(Clone, Zeroize, ZeroizeOnDrop)]
 pub struct SessionToken(String);
 
 impl SessionToken {
@@ -247,9 +227,13 @@ impl SessionToken {
     &self.0
   }
 
-  /// Consumes self and returns the inner String
+  /// Returns a clone of the inner String
+  ///
+  /// Note: Since SessionToken implements ZeroizeOnDrop, we cannot move out of it.
+  /// This method clones the token string, which is necessary when the token needs
+  /// to be sent to the client. The original will still be securely zeroized on drop.
   pub fn into_inner(self) -> String {
-    self.0
+    self.0.clone()
   }
 }
 
@@ -266,6 +250,16 @@ impl fmt::Display for SessionToken {
     f.write_str("***")
   }
 }
+
+impl AsRef<str> for SessionToken {
+  fn as_ref(&self) -> &str {
+    &self.0
+  }
+}
+
+// Note: From<SessionToken> for String is intentionally not implemented
+// because SessionToken has ZeroizeOnDrop and into_inner() returns a clone,
+// not a move. Using From would be misleading.
 
 // ============================================================================
 // TokenHash Value Object (SHA-256 Hash of Token)
@@ -310,117 +304,95 @@ impl fmt::Display for TokenHash {
   }
 }
 
-// ============================================================================
-// UserId Value Object
-// ============================================================================
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct UserId(Uuid);
-
-impl UserId {
-  /// Creates a new random UserId
-  pub fn new() -> Self {
-    Self(Uuid::new_v4())
-  }
-
-  /// Creates a UserId from an existing UUID
-  pub fn from_uuid(uuid: Uuid) -> Self {
-    Self(uuid)
-  }
-
-  /// Returns the inner UUID
-  pub fn into_inner(self) -> Uuid {
-    self.0
-  }
-
-  /// Returns a reference to the inner UUID
-  pub fn as_uuid(&self) -> &Uuid {
+impl AsRef<str> for TokenHash {
+  fn as_ref(&self) -> &str {
     &self.0
   }
 }
 
-impl Default for UserId {
-  fn default() -> Self {
-    Self::new()
+impl From<TokenHash> for String {
+  fn from(hash: TokenHash) -> Self {
+    hash.0
   }
 }
 
-impl fmt::Display for UserId {
-  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    write!(f, "{}", self.0)
-  }
+// ============================================================================
+// UUID-based Value Object Macro
+// ============================================================================
+
+/// Macro to generate UUID-based newtype wrappers with consistent implementations
+macro_rules! impl_uuid_newtype {
+  ($name:ident, $doc:expr) => {
+    #[doc = $doc]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+    pub struct $name(Uuid);
+
+    impl $name {
+      /// Creates a new random instance
+      pub fn new() -> Self {
+        Self(Uuid::new_v4())
+      }
+
+      /// Creates an instance from an existing UUID
+      pub fn from_uuid(uuid: Uuid) -> Self {
+        Self(uuid)
+      }
+
+      /// Returns the inner UUID
+      pub fn into_inner(self) -> Uuid {
+        self.0
+      }
+
+      /// Returns a reference to the inner UUID
+      pub fn as_uuid(&self) -> &Uuid {
+        &self.0
+      }
+    }
+
+    impl Default for $name {
+      fn default() -> Self {
+        Self::new()
+      }
+    }
+
+    impl fmt::Display for $name {
+      fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+      }
+    }
+
+    impl From<Uuid> for $name {
+      fn from(uuid: Uuid) -> Self {
+        Self(uuid)
+      }
+    }
+
+    impl From<$name> for Uuid {
+      fn from(id: $name) -> Self {
+        id.0
+      }
+    }
+  };
 }
 
-impl From<Uuid> for UserId {
-  fn from(uuid: Uuid) -> Self {
-    Self(uuid)
-  }
-}
+// ============================================================================
+// UserId Value Object
+// ============================================================================
 
-impl From<UserId> for Uuid {
-  fn from(user_id: UserId) -> Self {
-    user_id.0
-  }
-}
+impl_uuid_newtype!(UserId, "Unique identifier for a user");
 
 // ============================================================================
 // SessionId Value Object
 // ============================================================================
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct SessionId(Uuid);
-
-impl SessionId {
-  /// Creates a new random SessionId
-  pub fn new() -> Self {
-    Self(Uuid::new_v4())
-  }
-
-  /// Creates a SessionId from an existing UUID
-  pub fn from_uuid(uuid: Uuid) -> Self {
-    Self(uuid)
-  }
-
-  /// Returns the inner UUID
-  pub fn into_inner(self) -> Uuid {
-    self.0
-  }
-
-  /// Returns a reference to the inner UUID
-  pub fn as_uuid(&self) -> &Uuid {
-    &self.0
-  }
-}
-
-impl Default for SessionId {
-  fn default() -> Self {
-    Self::new()
-  }
-}
-
-impl fmt::Display for SessionId {
-  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    write!(f, "{}", self.0)
-  }
-}
-
-impl From<Uuid> for SessionId {
-  fn from(uuid: Uuid) -> Self {
-    Self(uuid)
-  }
-}
-
-impl From<SessionId> for Uuid {
-  fn from(session_id: SessionId) -> Self {
-    session_id.0
-  }
-}
+impl_uuid_newtype!(SessionId, "Unique identifier for a session");
 
 // ============================================================================
 // FailureReason Enum
 // ============================================================================
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum FailureReason {
   /// Invalid email or password
   InvalidCredentials,
@@ -509,19 +481,6 @@ mod tests {
       Password::new(long_password),
       Err(ValueObjectError::PasswordTooLong)
     ));
-  }
-
-  #[test]
-  fn test_password_hashing_and_verification() {
-    let password = Password::new("mysecretpassword").unwrap();
-    let hash = password.hash().unwrap();
-
-    // Should verify correctly
-    assert!(hash.verify(&password).unwrap());
-
-    // Should not verify with wrong password
-    let wrong_password = Password::new("wrongpassword").unwrap();
-    assert!(!hash.verify(&wrong_password).unwrap());
   }
 
   #[test]

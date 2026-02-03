@@ -191,6 +191,10 @@ async fn main() -> std::io::Result<()> {
     login_attempt_repo.clone(),
     password_hasher,
     token_generator,
+    config.security.session_ttl_seconds as i64,
+    config.security.remember_me_ttl_seconds as i64,
+    config.rate_limit.login_window_seconds as i64,
+    config.rate_limit.login_max_attempts as i64,
   ));
 
   // Initialize company service

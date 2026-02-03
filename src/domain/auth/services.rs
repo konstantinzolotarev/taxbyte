@@ -10,12 +10,6 @@ use super::ports::{
 };
 use super::value_objects::{Email, Password, SessionToken};
 
-/// Configuration constants for authentication
-const SESSION_DURATION_HOURS: i64 = 24;
-const REMEMBER_ME_DURATION_DAYS: i64 = 30;
-const RATE_LIMIT_WINDOW_MINUTES: i64 = 15;
-const MAX_FAILED_ATTEMPTS: i64 = 5;
-
 /// Authentication service implementing core business logic
 pub struct AuthService {
   user_repo: Arc<dyn UserRepository>,
@@ -24,16 +18,36 @@ pub struct AuthService {
   password_hasher: Arc<dyn PasswordHasher>,
   #[allow(dead_code)] // Reserved for future token refresh functionality
   token_generator: Arc<dyn TokenGenerator>,
+  // Configuration values
+  session_duration: Duration,
+  remember_me_duration: Duration,
+  rate_limit_window: Duration,
+  max_failed_attempts: i64,
 }
 
 impl AuthService {
   /// Creates a new instance of AuthService
+  ///
+  /// # Arguments
+  /// * `user_repo` - User repository
+  /// * `session_repo` - Session repository
+  /// * `attempt_repo` - Login attempt repository
+  /// * `password_hasher` - Password hasher implementation
+  /// * `token_generator` - Token generator implementation
+  /// * `session_ttl_seconds` - Session duration in seconds (e.g., 3600 for 1 hour)
+  /// * `remember_me_ttl_seconds` - Remember me duration in seconds (e.g., 2592000 for 30 days)
+  /// * `rate_limit_window_seconds` - Rate limit window in seconds (e.g., 300 for 5 minutes)
+  /// * `max_failed_attempts` - Maximum failed login attempts before rate limiting
   pub fn new(
     user_repo: Arc<dyn UserRepository>,
     session_repo: Arc<dyn SessionRepository>,
     attempt_repo: Arc<dyn LoginAttemptRepository>,
     password_hasher: Arc<dyn PasswordHasher>,
     token_generator: Arc<dyn TokenGenerator>,
+    session_ttl_seconds: i64,
+    remember_me_ttl_seconds: i64,
+    rate_limit_window_seconds: i64,
+    max_failed_attempts: i64,
   ) -> Self {
     Self {
       user_repo,
@@ -41,7 +55,16 @@ impl AuthService {
       attempt_repo,
       password_hasher,
       token_generator,
+      session_duration: Duration::seconds(session_ttl_seconds),
+      remember_me_duration: Duration::seconds(remember_me_ttl_seconds),
+      rate_limit_window: Duration::seconds(rate_limit_window_seconds),
+      max_failed_attempts,
     }
+  }
+
+  /// Helper method to generate a session token with proper error mapping
+  fn generate_session_token() -> Result<SessionToken, AuthError> {
+    SessionToken::generate().map_err(|e| AuthError::invalid_field(format!("session_token: {}", e)))
   }
 
   /// Registers a new user with email and password
@@ -83,19 +106,14 @@ impl AuthService {
     };
 
     // Generate session token
-    let session_token = SessionToken::generate().map_err(|e| {
-      AuthError::Validation(super::errors::ValidationError::InvalidField {
-        field: format!("session_token: {}", e),
-      })
-    })?;
-
+    let session_token = Self::generate_session_token()?;
     let token_hash = session_token.hash();
 
     // Create session with default duration
     let session = Session::with_duration(
       created_user.id,
       token_hash.into_inner(),
-      Duration::hours(SESSION_DURATION_HOURS),
+      self.session_duration,
       None,
       None,
     );
@@ -137,13 +155,13 @@ impl AuthService {
 
     // Check rate limiting - count recent failed attempts
     if let Some(ip) = ip_address {
-      let window_seconds = RATE_LIMIT_WINDOW_MINUTES * 60;
+      let window_seconds = self.rate_limit_window.num_seconds();
       let failed_attempts = self
         .attempt_repo
         .count_recent_failures(user.id, window_seconds)
         .await?;
 
-      if failed_attempts >= MAX_FAILED_ATTEMPTS {
+      if failed_attempts >= self.max_failed_attempts {
         // Record failed attempt
         let attempt = LoginAttempt::failure(email.into_inner(), ip);
         self.attempt_repo.create(attempt).await?;
@@ -154,17 +172,9 @@ impl AuthService {
 
     // Verify password
     let password_hash = super::value_objects::PasswordHash::from_hash(&user.password_hash)
-      .map_err(|e| {
-        AuthError::Validation(super::errors::ValidationError::InvalidField {
-          field: format!("password_hash: {}", e),
-        })
-      })?;
+      .map_err(|e| AuthError::invalid_field(format!("password_hash: {}", e)))?;
 
-    let is_valid = password_hash.verify(&password).map_err(|e| {
-      AuthError::Validation(super::errors::ValidationError::InvalidField {
-        field: format!("password_verification: {}", e),
-      })
-    })?;
+    let is_valid = self.password_hasher.verify(&password, &password_hash).await?;
 
     if !is_valid {
       // Record failed attempt
@@ -183,19 +193,14 @@ impl AuthService {
     }
 
     // Generate session token
-    let session_token = SessionToken::generate().map_err(|e| {
-      AuthError::Validation(super::errors::ValidationError::InvalidField {
-        field: format!("session_token: {}", e),
-      })
-    })?;
-
+    let session_token = Self::generate_session_token()?;
     let token_hash = session_token.hash();
 
     // Determine session duration based on remember_me flag
     let duration = if remember_me {
-      Duration::days(REMEMBER_ME_DURATION_DAYS)
+      self.remember_me_duration
     } else {
-      Duration::hours(SESSION_DURATION_HOURS)
+      self.session_duration
     };
 
     // Create session
@@ -305,17 +310,5 @@ impl AuthService {
     self.session_repo.update_activity(session.id).await?;
 
     Ok(user)
-  }
-}
-
-#[cfg(test)]
-mod tests {
-  // Mock implementations would go here for testing
-  // This is a placeholder for the test structure
-
-  #[tokio::test]
-  async fn test_placeholder() {
-    // This test would require mock implementations of all the traits
-    // For now, this is just a placeholder to show the test structure
   }
 }

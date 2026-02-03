@@ -1,11 +1,27 @@
-use super::value_objects::ValueObjectError;
+use super::value_objects::{InvoiceStatus, ValueObjectError};
 use thiserror::Error;
 use uuid::Uuid;
+
+/// Entity-level errors for Invoice operations
+#[derive(Debug, Error, Clone, PartialEq, Eq)]
+pub enum InvoiceEntityError {
+  #[error("Cannot edit invoice with status '{current_status}'. Only draft invoices can be edited.")]
+  CannotEditNonDraftInvoice { current_status: InvoiceStatus },
+
+  #[error("Invalid status transition from '{from}' to '{to}'")]
+  InvalidStatusTransition {
+    from: InvoiceStatus,
+    to: InvoiceStatus,
+  },
+}
 
 #[derive(Debug, Error)]
 pub enum InvoiceError {
   #[error("Validation error: {0}")]
   Validation(#[from] ValueObjectError),
+
+  #[error("Entity error: {0}")]
+  Entity(#[from] InvoiceEntityError),
 
   #[error("Customer not found: {0}")]
   CustomerNotFound(Uuid),

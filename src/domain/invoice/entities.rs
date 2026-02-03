@@ -2,13 +2,14 @@ use chrono::{DateTime, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use super::errors::InvoiceEntityError;
 use super::value_objects::{
   Currency, CustomerAddress, CustomerName, InvoiceNumber, InvoiceStatus, LineItemDescription,
   Money, PaymentTerms, Quantity, TemplateName, VatRate,
 };
 
 // Customer - Reusable client information
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Customer {
   pub id: Uuid,
   pub company_id: Uuid,
@@ -49,7 +50,7 @@ impl Customer {
 }
 
 // Invoice - Main invoice document
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Invoice {
   pub id: Uuid,
   pub company_id: Uuid,
@@ -104,12 +105,11 @@ impl Invoice {
     bank_account_id: Option<Uuid>,
     invoice_date: NaiveDate,
     payment_terms: PaymentTerms,
-  ) -> Result<(), String> {
+  ) -> Result<(), InvoiceEntityError> {
     if !self.status.is_editable() {
-      return Err(format!(
-        "Cannot edit invoice with status: {}",
-        self.status.as_str()
-      ));
+      return Err(InvoiceEntityError::CannotEditNonDraftInvoice {
+        current_status: self.status,
+      });
     }
 
     self.customer_id = customer_id;
@@ -122,13 +122,12 @@ impl Invoice {
     Ok(())
   }
 
-  pub fn change_status(&mut self, new_status: InvoiceStatus) -> Result<(), String> {
+  pub fn change_status(&mut self, new_status: InvoiceStatus) -> Result<(), InvoiceEntityError> {
     if !self.status.can_transition_to(new_status) {
-      return Err(format!(
-        "Cannot transition from {} to {}",
-        self.status.as_str(),
-        new_status.as_str()
-      ));
+      return Err(InvoiceEntityError::InvalidStatusTransition {
+        from: self.status,
+        to: new_status,
+      });
     }
 
     self.status = new_status;
@@ -159,7 +158,7 @@ impl Invoice {
 }
 
 // Invoice Line Item
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct InvoiceLineItem {
   pub id: Uuid,
   pub invoice_id: Uuid,
@@ -208,7 +207,7 @@ impl InvoiceLineItem {
 }
 
 // Invoice Totals - Calculated, not persisted
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct InvoiceTotals {
   pub subtotal: Money,
   pub total_vat: Money,
@@ -236,7 +235,7 @@ impl InvoiceTotals {
 }
 
 // Invoice Template - Reusable invoice configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct InvoiceTemplate {
   pub id: Uuid,
   pub company_id: Uuid,
@@ -288,7 +287,7 @@ impl InvoiceTemplate {
 }
 
 // Invoice Template Line Item
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct InvoiceTemplateLineItem {
   pub id: Uuid,
   pub template_id: Uuid,

@@ -195,7 +195,7 @@ impl From<CompanyError> for ApiError {
       CompanyError::NotFound => ApiError::Validation("Company not found".to_string()),
       CompanyError::NotMember => ApiError::Auth(AuthErrorKind::InvalidSession),
       CompanyError::AlreadyMember => ApiError::Validation("User is already a member".to_string()),
-      CompanyError::InsufficientPermissions => ApiError::Auth(AuthErrorKind::AccountDeleted),
+      CompanyError::InsufficientPermissions => ApiError::Auth(AuthErrorKind::Forbidden),
       CompanyError::CannotRemoveLastOwner => {
         ApiError::Validation("Cannot remove the last owner".to_string())
       }
@@ -221,6 +221,7 @@ impl From<InvoiceError> for ApiError {
   fn from(error: InvoiceError) -> Self {
     match error {
       InvoiceError::Validation(e) => ApiError::Validation(e.to_string()),
+      InvoiceError::Entity(e) => ApiError::Validation(e.to_string()),
       InvoiceError::CustomerNotFound(_) => ApiError::Validation("Customer not found".to_string()),
       InvoiceError::InvoiceNotFound(_) => ApiError::Validation("Invoice not found".to_string()),
       InvoiceError::LineItemNotFound(_) => ApiError::Validation("Line item not found".to_string()),
