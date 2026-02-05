@@ -68,6 +68,12 @@ pub enum InvoiceError {
   #[error("PDF generation failed: {0}")]
   PdfGenerationFailed(String),
 
+  #[error("Cloud storage upload failed: {0}")]
+  CloudStorageUploadFailed(String),
+
+  #[error("Cloud storage authentication failed: {0}")]
+  CloudStorageAuthFailed(String),
+
   #[error("Repository error: {0}")]
   Repository(String),
 

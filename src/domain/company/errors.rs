@@ -85,6 +85,9 @@ pub enum ValidationError {
 
   #[error("Bank details must be at most {max} characters")]
   BankDetailsTooLong { max: usize },
+
+  #[error("Invalid format: {0}")]
+  InvalidFormat(String),
 }
 
 impl From<CompanyError> for RepositoryError {

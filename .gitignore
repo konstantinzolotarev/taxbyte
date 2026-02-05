@@ -12,3 +12,4 @@ tarpaulin-report.html
 # Local configuration
 config/local.toml
 .env
+/data/invoices

@@ -10,6 +10,7 @@ pub mod set_active_bank_account;
 pub mod set_active_company;
 pub mod update_bank_account;
 pub mod update_company_profile;
+pub mod update_storage_config;
 
 pub use add_company_member::{AddCompanyMemberCommand, AddCompanyMemberUseCase};
 pub use archive_bank_account::{ArchiveBankAccountCommand, ArchiveBankAccountUseCase};
@@ -32,4 +33,7 @@ pub use set_active_company::{SetActiveCompanyCommand, SetActiveCompanyUseCase};
 pub use update_bank_account::{UpdateBankAccountCommand, UpdateBankAccountUseCase};
 pub use update_company_profile::{
   UpdateCompanyProfileCommand, UpdateCompanyProfileResponse, UpdateCompanyProfileUseCase,
+};
+pub use update_storage_config::{
+  UpdateStorageConfigCommand, UpdateStorageConfigResponse, UpdateStorageConfigUseCase,
 };

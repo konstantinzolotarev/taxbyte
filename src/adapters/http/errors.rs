@@ -250,6 +250,8 @@ impl From<InvoiceError> for ApiError {
       }
       InvoiceError::CannotDeleteInvoice(msg) => ApiError::Validation(msg),
       InvoiceError::PdfGenerationFailed(msg) => ApiError::Internal(msg),
+      InvoiceError::CloudStorageUploadFailed(msg) => ApiError::Internal(msg),
+      InvoiceError::CloudStorageAuthFailed(msg) => ApiError::Internal(msg),
       InvoiceError::Repository(msg) => ApiError::Internal(msg),
       InvoiceError::Database(e) => ApiError::Internal(format!("Database error: {}", e)),
       InvoiceError::Internal(msg) => ApiError::Internal(msg),

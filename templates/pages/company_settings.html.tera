@@ -1,22 +1,23 @@
 {% extends "layouts/base.html.tera" %}
 
-{% block title %}Settings - {{ company.name }} - TaxByte{% endblock %}
+{% block title %}Company Settings - {{ company.name }} - TaxByte{% endblock %}
 
 {% block content %}
-<div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-  <!-- Breadcrumb -->
-  <nav class="mb-6 text-sm">
-    <ol class="flex items-center gap-2 text-gray-500 dark:text-gray-400">
-      <li><a href="/companies" class="hover:text-gray-700 dark:hover:text-gray-300">Companies</a></li>
-      <li>›</li>
-      <li class="text-gray-900 dark:text-white font-medium">{{ company.name }} Settings</li>
-    </ol>
-  </nav>
-
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
   <!-- Header -->
   <div class="mb-8">
-    <h1 class="text-3xl font-bold text-gray-900 dark:text-white">Company Settings</h1>
-    <p class="mt-2 text-gray-600 dark:text-gray-400">Manage {{ company.name }}'s profile and details</p>
+    <div class="flex items-center justify-between">
+      <div>
+        <h1 class="text-3xl font-bold text-gray-900 dark:text-white">Company Settings</h1>
+        <p class="mt-2 text-gray-600 dark:text-gray-400">{{ company.name }}</p>
+      </div>
+      <a href="/companies" class="inline-flex items-center gap-2 px-4 py-2 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+        </svg>
+        Back to Companies
+      </a>
+    </div>
   </div>
 
   <!-- Success Message -->
@@ -26,9 +27,237 @@
   </div>
   {% endif %}
 
-  <!-- Settings Form Card -->
-  <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
-    {% include "partials/company_settings_form.html.tera" %}
+  <!-- Tabs -->
+  <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg" x-data="{ activeTab: 'profile' }">
+    <!-- Tab Headers -->
+    <div class="border-b border-gray-200 dark:border-gray-700">
+      <nav class="flex -mb-px">
+        <button
+          @click="activeTab = 'profile'"
+          :class="activeTab === 'profile' ? 'border-primary-500 text-primary-600 dark:text-primary-400' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'"
+          class="px-6 py-4 border-b-2 font-medium text-sm transition-colors"
+        >
+          <div class="flex items-center gap-2">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path>
+            </svg>
+            Company Profile
+          </div>
+        </button>
+        <button
+          @click="activeTab = 'storage'"
+          :class="activeTab === 'storage' ? 'border-primary-500 text-primary-600 dark:text-primary-400' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'"
+          class="px-6 py-4 border-b-2 font-medium text-sm transition-colors"
+        >
+          <div class="flex items-center gap-2">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"></path>
+            </svg>
+            Cloud Storage
+          </div>
+        </button>
+      </nav>
+    </div>
+
+    <!-- Tab Content -->
+    <div class="p-6">
+      <!-- Company Profile Tab -->
+      <div x-show="activeTab === 'profile'">
+        {% include "partials/company_settings_form.html.tera" %}
+      </div>
+
+      <!-- Storage Configuration Tab -->
+      <div x-show="activeTab === 'storage'" x-cloak>
+        <div class="max-w-3xl">
+          <div class="mb-6">
+            <h2 class="text-xl font-semibold text-gray-900 dark:text-white mb-2">Cloud Storage Configuration</h2>
+            <p class="text-gray-600 dark:text-gray-400">Configure where invoice PDFs are stored when marked as "Sent"</p>
+          </div>
+
+          <form method="POST" action="/companies/{{ company.company_id }}/settings/storage" class="space-y-6">
+            <!-- Storage Provider Selection -->
+            <div>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                Storage Provider
+              </label>
+              <div class="space-y-3" x-data="{ provider: '{{ company.storage_provider | default(value='none') }}' }">
+                <!-- None -->
+                <label class="flex items-start p-4 border-2 rounded-lg cursor-pointer transition-all"
+                  :class="provider === 'none' ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20' : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'"
+                >
+                  <input
+                    type="radio"
+                    name="storage_provider"
+                    value="none"
+                    x-model="provider"
+                    class="mt-1"
+                    {% if not company.storage_provider or company.storage_provider == "none" %}checked{% endif %}
+                  />
+                  <div class="ml-3 flex-1">
+                    <div class="font-medium text-gray-900 dark:text-white">No Cloud Storage</div>
+                    <div class="text-sm text-gray-600 dark:text-gray-400 mt-1">PDFs stored locally only</div>
+                  </div>
+                </label>
+
+                <!-- Google Drive -->
+                <label class="flex items-start p-4 border-2 rounded-lg cursor-pointer transition-all"
+                  :class="provider === 'google_drive' ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20' : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'"
+                >
+                  <input
+                    type="radio"
+                    name="storage_provider"
+                    value="google_drive"
+                    x-model="provider"
+                    class="mt-1"
+                    {% if company.storage_provider == "google_drive" %}checked{% endif %}
+                  />
+                  <div class="ml-3 flex-1">
+                    <div class="font-medium text-gray-900 dark:text-white">Google Drive</div>
+                    <div class="text-sm text-gray-600 dark:text-gray-400 mt-1">Upload PDFs to Google Drive</div>
+                  </div>
+                </label>
+
+                <!-- Amazon S3 -->
+                <label class="flex items-start p-4 border-2 rounded-lg cursor-pointer transition-all"
+                  :class="provider === 's3' ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20' : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'"
+                >
+                  <input
+                    type="radio"
+                    name="storage_provider"
+                    value="s3"
+                    x-model="provider"
+                    class="mt-1"
+                    {% if company.storage_provider == "s3" %}checked{% endif %}
+                  />
+                  <div class="ml-3 flex-1">
+                    <div class="font-medium text-gray-900 dark:text-white">Amazon S3</div>
+                    <div class="text-sm text-gray-600 dark:text-gray-400 mt-1">Upload PDFs to Amazon S3 (Coming Soon)</div>
+                  </div>
+                </label>
+
+                <!-- Google Drive Configuration -->
+                <div x-show="provider === 'google_drive'" x-cloak class="ml-6 p-4 bg-gray-50 dark:bg-gray-900/50 rounded-lg space-y-4">
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Service Account Key
+                      <span class="text-red-500">*</span>
+                    </label>
+                    <textarea
+                      name="google_drive_key"
+                      rows="6"
+                      placeholder="Paste your Google service account JSON key here or enter file path"
+                      class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent dark:bg-gray-800 dark:text-white font-mono text-sm"
+                    ></textarea>
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      Enter the file path (e.g., /path/to/key.json) or paste the JSON content directly
+                    </p>
+                  </div>
+
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Parent Folder ID (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      name="google_drive_folder_id"
+                      placeholder="Leave empty for Drive root"
+                      class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent dark:bg-gray-800 dark:text-white"
+                    />
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      Company folders will be created in this location
+                    </p>
+                  </div>
+                </div>
+
+                <!-- S3 Configuration -->
+                <div x-show="provider === 's3'" x-cloak class="ml-6 p-4 bg-gray-50 dark:bg-gray-900/50 rounded-lg space-y-4">
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      S3 Bucket Name
+                      <span class="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      name="s3_bucket"
+                      placeholder="my-invoices-bucket"
+                      class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent dark:bg-gray-800 dark:text-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      AWS Region
+                      <span class="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      name="s3_region"
+                      placeholder="us-east-1"
+                      class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent dark:bg-gray-800 dark:text-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Access Key ID
+                      <span class="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      name="s3_access_key"
+                      placeholder="AKIAIOSFODNN7EXAMPLE"
+                      class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent dark:bg-gray-800 dark:text-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Secret Access Key
+                      <span class="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="password"
+                      name="s3_secret_key"
+                      placeholder="wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+                      class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent dark:bg-gray-800 dark:text-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Key Prefix (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      name="s3_prefix"
+                      placeholder="invoices/"
+                      class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent dark:bg-gray-800 dark:text-white"
+                    />
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      Prefix for all uploaded files (e.g., "invoices/" or "company-name/invoices/")
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Save Button -->
+            <div class="flex items-center justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+              <button
+                type="submit"
+                class="px-6 py-2 bg-primary-600 hover:bg-primary-700 text-white font-medium rounded-lg transition-colors"
+              >
+                Save Configuration
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
+
+<style>
+  [x-cloak] { display: none !important; }
+</style>
 {% endblock %}

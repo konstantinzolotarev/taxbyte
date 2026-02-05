@@ -22,6 +22,7 @@ struct InvoiceRow {
   currency: String,
   status: String,
   pdf_path: Option<String>,
+  pdf_drive_file_id: Option<String>,
   created_at: DateTime<Utc>,
   updated_at: DateTime<Utc>,
   archived_at: Option<DateTime<Utc>>,
@@ -48,6 +49,7 @@ impl TryFrom<InvoiceRow> for Invoice {
       currency,
       status,
       pdf_path: row.pdf_path,
+      pdf_drive_file_id: row.pdf_drive_file_id,
       created_at: row.created_at,
       updated_at: row.updated_at,
       archived_at: row.archived_at,
@@ -75,12 +77,12 @@ impl InvoiceRepository for PostgresInvoiceRepository {
             INSERT INTO invoices (
                 id, company_id, customer_id, bank_account_id, invoice_number,
                 invoice_date, due_date, payment_terms, currency, status,
-                pdf_path, created_at, updated_at, archived_at
+                pdf_path, pdf_drive_file_id, created_at, updated_at, archived_at
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
             RETURNING id, company_id, customer_id, bank_account_id, invoice_number,
                       invoice_date, due_date, payment_terms, currency, status,
-                      pdf_path, created_at, updated_at, archived_at
+                      pdf_path, pdf_drive_file_id, created_at, updated_at, archived_at
             "#,
     )
     .bind(invoice.id)
@@ -94,6 +96,7 @@ impl InvoiceRepository for PostgresInvoiceRepository {
     .bind(invoice.currency.as_str())
     .bind(invoice.status.as_str())
     .bind(invoice.pdf_path)
+    .bind(invoice.pdf_drive_file_id)
     .bind(invoice.created_at)
     .bind(invoice.updated_at)
     .bind(invoice.archived_at)
@@ -121,11 +124,11 @@ impl InvoiceRepository for PostgresInvoiceRepository {
             UPDATE invoices
             SET customer_id = $2, bank_account_id = $3, invoice_date = $4,
                 due_date = $5, payment_terms = $6, status = $7,
-                pdf_path = $8, updated_at = $9, archived_at = $10
+                pdf_path = $8, pdf_drive_file_id = $9, updated_at = $10, archived_at = $11
             WHERE id = $1
             RETURNING id, company_id, customer_id, bank_account_id, invoice_number,
                       invoice_date, due_date, payment_terms, currency, status,
-                      pdf_path, created_at, updated_at, archived_at
+                      pdf_path, pdf_drive_file_id, created_at, updated_at, archived_at
             "#,
     )
     .bind(invoice.id)
@@ -136,6 +139,7 @@ impl InvoiceRepository for PostgresInvoiceRepository {
     .bind(invoice.payment_terms.as_str())
     .bind(invoice.status.as_str())
     .bind(invoice.pdf_path)
+    .bind(invoice.pdf_drive_file_id)
     .bind(invoice.updated_at)
     .bind(invoice.archived_at)
     .fetch_one(&self.pool)
@@ -149,7 +153,7 @@ impl InvoiceRepository for PostgresInvoiceRepository {
       r#"
             SELECT id, company_id, customer_id, bank_account_id, invoice_number,
                    invoice_date, due_date, payment_terms, currency, status,
-                   pdf_path, created_at, updated_at, archived_at
+                   pdf_path, pdf_drive_file_id, created_at, updated_at, archived_at
             FROM invoices
             WHERE id = $1
             "#,
@@ -166,7 +170,7 @@ impl InvoiceRepository for PostgresInvoiceRepository {
       r#"
             SELECT id, company_id, customer_id, bank_account_id, invoice_number,
                    invoice_date, due_date, payment_terms, currency, status,
-                   pdf_path, created_at, updated_at, archived_at
+                   pdf_path, pdf_drive_file_id, created_at, updated_at, archived_at
             FROM invoices
             WHERE company_id = $1 AND archived_at IS NULL
             ORDER BY invoice_number DESC
@@ -188,7 +192,7 @@ impl InvoiceRepository for PostgresInvoiceRepository {
       r#"
             SELECT id, company_id, customer_id, bank_account_id, invoice_number,
                    invoice_date, due_date, payment_terms, currency, status,
-                   pdf_path, created_at, updated_at, archived_at
+                   pdf_path, pdf_drive_file_id, created_at, updated_at, archived_at
             FROM invoices
             WHERE company_id = $1 AND status = $2 AND archived_at IS NULL
             ORDER BY invoice_number DESC
@@ -211,7 +215,7 @@ impl InvoiceRepository for PostgresInvoiceRepository {
       r#"
             SELECT id, company_id, customer_id, bank_account_id, invoice_number,
                    invoice_date, due_date, payment_terms, currency, status,
-                   pdf_path, created_at, updated_at, archived_at
+                   pdf_path, pdf_drive_file_id, created_at, updated_at, archived_at
             FROM invoices
             WHERE company_id = $1 AND customer_id = $2 AND archived_at IS NULL
             ORDER BY invoice_number DESC
@@ -234,7 +238,7 @@ impl InvoiceRepository for PostgresInvoiceRepository {
       r#"
             SELECT id, company_id, customer_id, bank_account_id, invoice_number,
                    invoice_date, due_date, payment_terms, currency, status,
-                   pdf_path, created_at, updated_at, archived_at
+                   pdf_path, pdf_drive_file_id, created_at, updated_at, archived_at
             FROM invoices
             WHERE company_id = $1 AND status = 'sent' AND due_date < $2 AND archived_at IS NULL
             ORDER BY due_date ASC

@@ -18,6 +18,10 @@ struct CompanyRow {
   address: Option<String>, // JSON string
   tax_id: Option<String>,  // Maps to registry_code
   vat_number: Option<String>,
+  invoice_folder_path: Option<String>,
+  google_drive_folder_id: Option<String>,
+  storage_provider: Option<String>,
+  storage_config: Option<String>,
   created_at: DateTime<Utc>,
   updated_at: DateTime<Utc>,
 }
@@ -71,6 +75,10 @@ impl TryFrom<CompanyRow> for Company {
       address,
       registry_code,
       vat_number,
+      invoice_folder_path: row.invoice_folder_path,
+      google_drive_folder_id: row.google_drive_folder_id,
+      storage_provider: row.storage_provider,
+      storage_config: row.storage_config,
       created_at: row.created_at,
       updated_at: row.updated_at,
     })
@@ -104,9 +112,9 @@ impl CompanyRepository for PostgresCompanyRepository {
 
     let row = sqlx::query_as::<_, CompanyRow>(
             r#"
-            INSERT INTO companies (id, name, email, phone, address, tax_id, vat_number, created_at, updated_at)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-            RETURNING id, name, email, phone, address, tax_id, vat_number, created_at, updated_at
+            INSERT INTO companies (id, name, email, phone, address, tax_id, vat_number, invoice_folder_path, google_drive_folder_id, storage_provider, storage_config, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+            RETURNING id, name, email, phone, address, tax_id, vat_number, invoice_folder_path, google_drive_folder_id, storage_provider, storage_config, created_at, updated_at
             "#,
         )
         .bind(company.id)
@@ -116,6 +124,10 @@ impl CompanyRepository for PostgresCompanyRepository {
         .bind(address_json.as_deref())
         .bind(company.registry_code.as_ref().map(|r| r.as_str()))
         .bind(company.vat_number.as_ref().map(|v| v.as_str()))
+        .bind(company.invoice_folder_path.as_deref())
+        .bind(company.google_drive_folder_id.as_deref())
+        .bind(company.storage_provider.as_deref())
+        .bind(company.storage_config.as_deref())
         .bind(company.created_at)
         .bind(company.updated_at)
         .fetch_one(&self.pool)
@@ -127,7 +139,7 @@ impl CompanyRepository for PostgresCompanyRepository {
   async fn find_by_id(&self, id: Uuid) -> Result<Option<Company>, CompanyError> {
     let row = sqlx::query_as::<_, CompanyRow>(
       r#"
-            SELECT id, name, email, phone, address, tax_id, vat_number, created_at, updated_at
+            SELECT id, name, email, phone, address, tax_id, vat_number, invoice_folder_path, google_drive_folder_id, storage_provider, storage_config, created_at, updated_at
             FROM companies
             WHERE id = $1
             "#,
@@ -155,9 +167,9 @@ impl CompanyRepository for PostgresCompanyRepository {
     let row = sqlx::query_as::<_, CompanyRow>(
             r#"
             UPDATE companies
-            SET name = $2, email = $3, phone = $4, address = $5, tax_id = $6, vat_number = $7, updated_at = $8
+            SET name = $2, email = $3, phone = $4, address = $5, tax_id = $6, vat_number = $7, invoice_folder_path = $8, google_drive_folder_id = $9, storage_provider = $10, storage_config = $11, updated_at = $12
             WHERE id = $1
-            RETURNING id, name, email, phone, address, tax_id, vat_number, created_at, updated_at
+            RETURNING id, name, email, phone, address, tax_id, vat_number, invoice_folder_path, google_drive_folder_id, storage_provider, storage_config, created_at, updated_at
             "#,
         )
         .bind(company.id)
@@ -167,6 +179,10 @@ impl CompanyRepository for PostgresCompanyRepository {
         .bind(address_json.as_deref())
         .bind(company.registry_code.as_ref().map(|r| r.as_str()))
         .bind(company.vat_number.as_ref().map(|v| v.as_str()))
+        .bind(company.invoice_folder_path.as_deref())
+        .bind(company.google_drive_folder_id.as_deref())
+        .bind(company.storage_provider.as_deref())
+        .bind(company.storage_config.as_deref())
         .bind(company.updated_at)
         .fetch_one(&self.pool)
         .await?;

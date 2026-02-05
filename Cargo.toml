@@ -70,6 +70,9 @@ async-trait = "0.1.89"
 # Utilities
 lazy_static = "1.5.0"
 
+# Google Drive Integration
+google-drive3 = "5.0.5"
+
 [dev-dependencies]
 testcontainers = "0.23.1"
 testcontainers-modules = { version = "0.11.3", features = ["postgres"] }

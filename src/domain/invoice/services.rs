@@ -427,10 +427,14 @@ impl InvoiceService {
       .await?
       .ok_or(InvoiceError::InvoiceNotFound(invoice_id))?;
 
-    // Verify user is company member
-    self
-      .verify_company_membership(user_id, invoice.company_id)
-      .await?;
+    // Verify user is company member (skip for system user - nil UUID for PDF generation)
+    // SECURITY: Nil UUID bypass is safe because the /invoices/{id}/html endpoint
+    // is protected by IP whitelist (localhost only). See invoice_html_view handler.
+    if !user_id.is_nil() {
+      self
+        .verify_company_membership(user_id, invoice.company_id)
+        .await?;
+    }
 
     Ok(invoice)
   }
@@ -510,9 +514,9 @@ impl InvoiceService {
 
   pub async fn set_invoice_pdf_path(
     &self,
-    user_id: Uuid,
     invoice_id: Uuid,
     pdf_path: String,
+    drive_file_id: Option<String>,
   ) -> Result<Invoice, InvoiceError> {
     let mut invoice = self
       .invoice_repo
@@ -520,12 +524,8 @@ impl InvoiceService {
       .await?
       .ok_or(InvoiceError::InvoiceNotFound(invoice_id))?;
 
-    // Verify user is company member
-    self
-      .verify_company_membership(user_id, invoice.company_id)
-      .await?;
-
     invoice.set_pdf_path(pdf_path);
+    invoice.pdf_drive_file_id = drive_file_id;
     self.invoice_repo.update(invoice).await
   }
 

@@ -23,6 +23,9 @@ pub struct Config {
   pub redis: RedisConfig,
   pub security: SecurityConfig,
   pub rate_limit: RateLimitConfig,
+  #[serde(default)]
+  pub google_drive: Option<GoogleDriveConfig>,
+  pub pdf: PdfConfig,
 }
 
 /// Server configuration
@@ -30,6 +33,7 @@ pub struct Config {
 pub struct ServerConfig {
   pub host: String,
   pub port: u16,
+  pub base_url: String,
 }
 
 /// Database configuration
@@ -64,6 +68,22 @@ pub struct SecurityConfig {
 pub struct RateLimitConfig {
   pub login_max_attempts: u32,
   pub login_window_seconds: u64,
+}
+
+/// Google Drive configuration
+#[derive(Debug, Clone, Deserialize)]
+pub struct GoogleDriveConfig {
+  pub service_account_key_path: String,
+  pub parent_folder_id: Option<String>,
+  pub default_invoice_subfolder: String,
+  pub enabled: bool,
+}
+
+/// PDF generation configuration
+#[derive(Debug, Clone, Deserialize)]
+pub struct PdfConfig {
+  pub output_dir: String,
+  pub wkhtmltopdf_path: Option<String>,
 }
 
 impl Config {
@@ -155,6 +175,9 @@ mod tests {
             [rate_limit]
             login_max_attempts = 5
             login_window_seconds = 300
+
+            [pdf]
+            output_dir = "./data/invoices/pdfs"
         "#;
 
     let config: Config = toml::from_str(toml).expect("Failed to parse config");

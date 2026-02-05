@@ -8,13 +8,16 @@
 host = "127.0.0.1"
 # Server port
 port = 8080
+# Base URL for PDF generation (used by wkhtmltopdf)
+base_url = "http://127.0.0.1:8080"
 
 [database]
 # PostgreSQL database URL
 # Format: postgres://username:password@host:port/database
 url = "postgres://postgres:postgres@localhost:5432/taxbyte"
 # Maximum number of database connections in the pool
-max_connections = 10
+# Increased to handle wkhtmltopdf callback requests during PDF generation
+max_connections = 30
 # Database connection timeout in seconds
 connect_timeout_seconds = 5
 # Connection pool acquisition timeout in seconds
@@ -40,3 +43,17 @@ remember_me_ttl_seconds = 2592000
 login_max_attempts = 5
 # Time window for login rate limiting in seconds (default: 5 minutes)
 login_window_seconds = 300
+
+# Google Drive configuration is now per-company
+# Configure storage providers in the company settings UI or database
+# [google_drive]
+# enabled = true
+# service_account_key_path = "./config/google-service-account.json"
+# default_invoice_subfolder = "Invoices"
+# parent_folder_id = ""
+
+[pdf]
+# Directory for storing generated PDF files
+output_dir = "./data/invoices/pdfs"
+# Optional: custom path to wkhtmltopdf binary (defaults to "wkhtmltopdf" in PATH)
+# wkhtmltopdf_path = "/usr/bin/wkhtmltopdf"

@@ -10,6 +10,19 @@ use super::ports::{
 };
 use super::value_objects::{Email, Password, SessionToken};
 
+/// Configuration for AuthService
+#[derive(Debug, Clone)]
+pub struct AuthServiceConfig {
+  /// Session duration in seconds (e.g., 3600 for 1 hour)
+  pub session_ttl_seconds: i64,
+  /// Remember me duration in seconds (e.g., 2592000 for 30 days)
+  pub remember_me_ttl_seconds: i64,
+  /// Rate limit window in seconds (e.g., 300 for 5 minutes)
+  pub rate_limit_window_seconds: i64,
+  /// Maximum failed login attempts before rate limiting
+  pub max_failed_attempts: i64,
+}
+
 /// Authentication service implementing core business logic
 pub struct AuthService {
   user_repo: Arc<dyn UserRepository>,
@@ -34,20 +47,14 @@ impl AuthService {
   /// * `attempt_repo` - Login attempt repository
   /// * `password_hasher` - Password hasher implementation
   /// * `token_generator` - Token generator implementation
-  /// * `session_ttl_seconds` - Session duration in seconds (e.g., 3600 for 1 hour)
-  /// * `remember_me_ttl_seconds` - Remember me duration in seconds (e.g., 2592000 for 30 days)
-  /// * `rate_limit_window_seconds` - Rate limit window in seconds (e.g., 300 for 5 minutes)
-  /// * `max_failed_attempts` - Maximum failed login attempts before rate limiting
+  /// * `config` - Service configuration (TTLs, rate limits, etc.)
   pub fn new(
     user_repo: Arc<dyn UserRepository>,
     session_repo: Arc<dyn SessionRepository>,
     attempt_repo: Arc<dyn LoginAttemptRepository>,
     password_hasher: Arc<dyn PasswordHasher>,
     token_generator: Arc<dyn TokenGenerator>,
-    session_ttl_seconds: i64,
-    remember_me_ttl_seconds: i64,
-    rate_limit_window_seconds: i64,
-    max_failed_attempts: i64,
+    config: AuthServiceConfig,
   ) -> Self {
     Self {
       user_repo,
@@ -55,10 +62,10 @@ impl AuthService {
       attempt_repo,
       password_hasher,
       token_generator,
-      session_duration: Duration::seconds(session_ttl_seconds),
-      remember_me_duration: Duration::seconds(remember_me_ttl_seconds),
-      rate_limit_window: Duration::seconds(rate_limit_window_seconds),
-      max_failed_attempts,
+      session_duration: Duration::seconds(config.session_ttl_seconds),
+      remember_me_duration: Duration::seconds(config.remember_me_ttl_seconds),
+      rate_limit_window: Duration::seconds(config.rate_limit_window_seconds),
+      max_failed_attempts: config.max_failed_attempts,
     }
   }
 
@@ -174,7 +181,10 @@ impl AuthService {
     let password_hash = super::value_objects::PasswordHash::from_hash(&user.password_hash)
       .map_err(|e| AuthError::invalid_field(format!("password_hash: {}", e)))?;
 
-    let is_valid = self.password_hasher.verify(&password, &password_hash).await?;
+    let is_valid = self
+      .password_hasher
+      .verify(&password, &password_hash)
+      .await?;
 
     if !is_valid {
       // Record failed attempt

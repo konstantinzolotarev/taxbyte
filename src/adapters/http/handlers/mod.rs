@@ -2,6 +2,7 @@ pub mod auth;
 pub mod bank_accounts;
 pub mod bank_accounts_web;
 pub mod company;
+pub mod company_settings;
 pub mod company_web;
 pub mod customers_web;
 pub mod invoices_web;

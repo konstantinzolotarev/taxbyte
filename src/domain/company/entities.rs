@@ -19,6 +19,10 @@ pub struct Company {
   pub address: Option<CompanyAddress>,
   pub registry_code: Option<RegistryCode>,
   pub vat_number: Option<VatNumber>,
+  pub invoice_folder_path: Option<String>,
+  pub google_drive_folder_id: Option<String>,
+  pub storage_provider: Option<String>,
+  pub storage_config: Option<String>,
   pub created_at: DateTime<Utc>,
   pub updated_at: DateTime<Utc>,
 }
@@ -35,6 +39,10 @@ impl Company {
       address: None,
       registry_code: None,
       vat_number: None,
+      invoice_folder_path: None,
+      google_drive_folder_id: None,
+      storage_provider: None,
+      storage_config: None,
       created_at: now,
       updated_at: now,
     }

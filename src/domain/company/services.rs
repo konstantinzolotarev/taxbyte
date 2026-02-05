@@ -193,6 +193,38 @@ impl CompanyService {
     self.company_repo.update(company).await
   }
 
+  /// Update company storage configuration (requires owner/admin permission)
+  pub async fn update_storage_config(
+    &self,
+    company_id: Uuid,
+    requester_id: Uuid,
+    storage_provider: Option<String>,
+    storage_config: Option<String>,
+  ) -> Result<Company, CompanyError> {
+    // Verify requester is member
+    let member = self.verify_membership(company_id, requester_id).await?;
+
+    // Check permissions (owner or admin)
+    if !member.can_manage_members() {
+      return Err(CompanyError::InsufficientPermissions);
+    }
+
+    // Get company
+    let mut company = self
+      .company_repo
+      .find_by_id(company_id)
+      .await?
+      .ok_or(CompanyError::NotFound)?;
+
+    // Update storage configuration
+    company.storage_provider = storage_provider;
+    company.storage_config = storage_config;
+    company.updated_at = chrono::Utc::now();
+
+    // Save
+    self.company_repo.update(company).await
+  }
+
   /// Helper: Verify user is member of company
   async fn verify_membership(
     &self,

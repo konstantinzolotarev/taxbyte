@@ -575,3 +575,57 @@ pub async fn archive_template(
       .finish(),
   )
 }
+
+// GET /invoices/{id}/html - Render invoice HTML for PDF generation
+//
+// SECURITY: This endpoint is restricted to localhost only (IP whitelist)
+// Used by wkhtmltopdf for PDF generation. Only accepts requests from:
+// - 127.0.0.1 (IPv4 localhost)
+// - ::1 (IPv6 localhost)
+//
+pub async fn invoice_html_view(
+  req: HttpRequest,
+  path: web::Path<Uuid>,
+  templates: web::Data<TemplateEngine>,
+  get_invoice_details: web::Data<Arc<GetInvoiceDetailsUseCase>>,
+) -> Result<HttpResponse, ApiError> {
+  // IP Whitelist: Only allow localhost
+  let peer_addr = req
+    .peer_addr()
+    .ok_or_else(|| ApiError::Internal("Cannot determine peer address".to_string()))?;
+
+  let is_localhost = peer_addr.ip().is_loopback();
+
+  if !is_localhost {
+    tracing::warn!(
+      "Rejected invoice HTML access from non-localhost IP: {}",
+      peer_addr.ip()
+    );
+    return Err(ApiError::Auth(
+      crate::adapters::http::errors::AuthErrorKind::Forbidden,
+    ));
+  }
+
+  let invoice_id = path.into_inner();
+
+  // Using nil UUID to bypass authentication checks (safe because IP is whitelisted)
+  let system_user_id = Uuid::nil();
+
+  // Get invoice details
+  let invoice_data = get_invoice_details
+    .execute(GetInvoiceDetailsCommand {
+      user_id: system_user_id,
+      invoice_id,
+    })
+    .await?;
+
+  // Render the invoice PDF template
+  let mut context = tera::Context::new();
+  context.insert("invoice", &invoice_data);
+
+  let html = templates
+    .render("partials/invoice_pdf.html.tera", &context)
+    .map_err(|e| ApiError::Internal(format!("Template error: {}", e)))?;
+
+  Ok(HttpResponse::Ok().content_type("text/html").body(html))
+}

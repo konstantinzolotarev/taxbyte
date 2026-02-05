@@ -7,6 +7,7 @@ use super::entities::{
 };
 use super::errors::InvoiceError;
 use super::value_objects::InvoiceStatus;
+use crate::application::invoice::get_invoice_details::InvoiceDetailsResponse;
 
 #[async_trait]
 pub trait CustomerRepository: Send + Sync {
@@ -99,4 +100,40 @@ pub trait InvoiceTemplateLineItemRepository: Send + Sync {
     template_id: Uuid,
   ) -> Result<Vec<InvoiceTemplateLineItem>, InvoiceError>;
   async fn delete_by_template_id(&self, template_id: Uuid) -> Result<(), InvoiceError>;
+}
+
+// PDF Generation Port
+#[async_trait]
+pub trait PdfGenerator: Send + Sync {
+  /// Generate PDF from invoice data
+  /// Returns: Local file path where PDF was saved
+  async fn generate_invoice_pdf(
+    &self,
+    invoice_id: Uuid,
+    invoice_data: &InvoiceDetailsResponse,
+  ) -> Result<String, InvoiceError>;
+}
+
+// Cloud Storage Port
+#[async_trait]
+pub trait CloudStorage: Send + Sync {
+  /// Upload file to cloud storage
+  /// Returns: Cloud file ID (Google Drive file ID)
+  /// subfolder_path: e.g., "Invoices" or "Documents/Invoices" (relative to company folder)
+  async fn upload_invoice_pdf(
+    &self,
+    company_name: &str,
+    invoice_number: &str,
+    local_pdf_path: &str,
+    subfolder_path: &str,
+  ) -> Result<String, InvoiceError>;
+
+  /// Ensure nested folder structure exists for company
+  /// Creates: /Company Name/subfolder_path/
+  /// Returns: Final folder ID where invoices will be uploaded
+  async fn ensure_invoice_folder(
+    &self,
+    company_name: &str,
+    subfolder_path: &str,
+  ) -> Result<String, InvoiceError>;
 }

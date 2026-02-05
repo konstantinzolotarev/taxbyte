@@ -28,7 +28,7 @@ use taxbyte::{
     GetInvoiceDetailsUseCase, ListCustomersUseCase, ListInvoicesUseCase, ListTemplatesUseCase,
     UpdateCustomerUseCase,
   },
-  domain::auth::services::AuthService,
+  domain::auth::services::{AuthService, AuthServiceConfig},
   domain::company::services::CompanyService,
   domain::invoice::{InvoiceService, InvoiceServiceDependencies},
   infrastructure::{
@@ -185,16 +185,20 @@ async fn main() -> std::io::Result<()> {
   let token_generator = Arc::new(SecureTokenGenerator::new());
 
   // Initialize domain service
+  let auth_config = AuthServiceConfig {
+    session_ttl_seconds: config.security.session_ttl_seconds as i64,
+    remember_me_ttl_seconds: config.security.remember_me_ttl_seconds as i64,
+    rate_limit_window_seconds: config.rate_limit.login_window_seconds as i64,
+    max_failed_attempts: config.rate_limit.login_max_attempts as i64,
+  };
+
   let auth_service = Arc::new(AuthService::new(
     user_repo.clone(),
     session_repo.clone(),
     login_attempt_repo.clone(),
     password_hasher,
     token_generator,
-    config.security.session_ttl_seconds as i64,
-    config.security.remember_me_ttl_seconds as i64,
-    config.rate_limit.login_window_seconds as i64,
-    config.rate_limit.login_max_attempts as i64,
+    auth_config,
   ));
 
   // Initialize company service
@@ -241,6 +245,9 @@ async fn main() -> std::io::Result<()> {
     company_member_repo.clone(),
   ));
   let update_profile_use_case = Arc::new(UpdateCompanyProfileUseCase::new(company_service.clone()));
+  let update_storage_config_use_case = Arc::new(
+    taxbyte::application::company::UpdateStorageConfigUseCase::new(company_service.clone()),
+  );
 
   // Initialize bank account use cases
   let create_bank_account_use_case =
@@ -264,8 +271,6 @@ async fn main() -> std::io::Result<()> {
   let list_invoices_use_case = Arc::new(ListInvoicesUseCase::new(invoice_service.clone()));
   let get_invoice_details_use_case =
     Arc::new(GetInvoiceDetailsUseCase::new(invoice_service.clone()));
-  let change_invoice_status_use_case =
-    Arc::new(ChangeInvoiceStatusUseCase::new(invoice_service.clone()));
   let archive_invoice_use_case = Arc::new(ArchiveInvoiceUseCase::new(invoice_service.clone()));
   let delete_invoice_use_case = Arc::new(DeleteInvoiceUseCase::new(invoice_service.clone()));
 
@@ -286,6 +291,22 @@ async fn main() -> std::io::Result<()> {
   // Initialize template engine
   let templates = TemplateEngine::new().expect("Failed to initialize template engine");
   tracing::info!("Template engine initialized");
+
+  // Initialize PDF generator
+  let pdf_output_dir = std::path::PathBuf::from(&config.pdf.output_dir);
+  let pdf_generator = Arc::new(taxbyte::infrastructure::pdf::WkHtmlToPdfGenerator::new(
+    pdf_output_dir,
+    config.pdf.wkhtmltopdf_path.clone(),
+    config.server.base_url.clone(),
+  )) as Arc<dyn taxbyte::domain::invoice::ports::PdfGenerator>;
+  tracing::info!("PDF generator initialized");
+
+  // Initialize change invoice status use case (cloud storage configured per-company)
+  let change_invoice_status_use_case = Arc::new(ChangeInvoiceStatusUseCase::new(
+    invoice_service.clone(),
+    pdf_generator.clone(),
+    get_invoice_details_use_case.clone(),
+  ));
 
   let server_host = config.server.host.clone();
   let server_port = config.server.port;
@@ -315,6 +336,7 @@ async fn main() -> std::io::Result<()> {
             remove_member_use_case: remove_member_use_case.clone(),
             get_details_use_case: get_details_use_case.clone(),
             update_profile_use_case: update_profile_use_case.clone(),
+            update_storage_config_use_case: update_storage_config_use_case.clone(),
             create_bank_account_use_case: create_bank_account_use_case.clone(),
             get_bank_accounts_use_case: get_bank_accounts_use_case.clone(),
             update_bank_account_use_case: update_bank_account_use_case.clone(),

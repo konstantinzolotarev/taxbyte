@@ -2,6 +2,7 @@ pub mod entities;
 pub mod errors;
 pub mod ports;
 pub mod services;
+pub mod storage_provider;
 pub mod value_objects;
 
 pub use entities::{
@@ -14,6 +15,7 @@ pub use ports::{
   CompanyMemberRepository, CompanyRepository,
 };
 pub use services::CompanyService;
+pub use storage_provider::{GoogleDriveConfig, S3Config, StorageConfig, StorageProvider};
 pub use value_objects::{
   BankAccountName, BankDetails, CompanyAddress, CompanyName, Iban, PhoneNumber, RegistryCode,
   VatNumber,

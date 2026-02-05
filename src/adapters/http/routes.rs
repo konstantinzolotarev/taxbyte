@@ -9,7 +9,7 @@ use crate::application::company::{
   AddCompanyMemberUseCase, ArchiveBankAccountUseCase, CreateBankAccountUseCase,
   CreateCompanyUseCase, GetBankAccountsUseCase, GetCompanyDetailsUseCase, GetUserCompaniesUseCase,
   RemoveCompanyMemberUseCase, SetActiveBankAccountUseCase, SetActiveCompanyUseCase,
-  UpdateBankAccountUseCase, UpdateCompanyProfileUseCase,
+  UpdateBankAccountUseCase, UpdateCompanyProfileUseCase, UpdateStorageConfigUseCase,
 };
 use crate::application::invoice::{
   ArchiveCustomerUseCase, ArchiveInvoiceUseCase, ChangeInvoiceStatusUseCase, CreateCustomerUseCase,
@@ -31,8 +31,8 @@ use super::handlers::company::{
   remove_company_member_handler, set_active_company_handler,
 };
 use super::handlers::{
-  bank_accounts, bank_accounts_web, company_web, customers_web, get_user, invoices_web, pages,
-  web_auth,
+  bank_accounts, bank_accounts_web, company_settings, company_web, customers_web, get_user,
+  invoices_web, pages, web_auth,
 };
 use super::middleware::{CompanyContextMiddleware, WebAuthMiddleware};
 use super::templates::TemplateEngine;
@@ -50,6 +50,7 @@ pub struct WebRouteDependencies {
   pub remove_member_use_case: Arc<RemoveCompanyMemberUseCase>,
   pub get_details_use_case: Arc<GetCompanyDetailsUseCase>,
   pub update_profile_use_case: Arc<UpdateCompanyProfileUseCase>,
+  pub update_storage_config_use_case: Arc<UpdateStorageConfigUseCase>,
   pub create_bank_account_use_case: Arc<CreateBankAccountUseCase>,
   pub get_bank_accounts_use_case: Arc<GetBankAccountsUseCase>,
   pub update_bank_account_use_case: Arc<UpdateBankAccountUseCase>,
@@ -230,6 +231,15 @@ pub fn configure_web_routes(cfg: &mut web::ServiceConfig, deps: WebRouteDependen
   cfg.route("/login", web::get().to(pages::login_page));
   cfg.route("/register", web::get().to(pages::register_page));
 
+  // Invoice HTML view for wkhtmltopdf (localhost only - IP whitelisted)
+  // SECURITY: Protected by IP whitelist (127.0.0.1, ::1) in handler
+  cfg.service(
+    web::resource("/invoices/{id}/html")
+      .app_data(web::Data::new(deps.templates.clone()))
+      .app_data(web::Data::new(deps.get_invoice_details_use_case.clone()))
+      .route(web::get().to(invoices_web::invoice_html_view)),
+  );
+
   // Root route - redirect to dashboard (will redirect to login if not authenticated)
   let active_repo_root = active_repo_for_redirects.clone();
   let member_repo_root = member_repo_for_redirects.clone();
@@ -297,8 +307,9 @@ pub fn configure_web_routes(cfg: &mut web::ServiceConfig, deps: WebRouteDependen
       .app_data(web::Data::new(deps.set_active_use_case))
       .app_data(web::Data::new(deps.add_member_use_case))
       .app_data(web::Data::new(deps.remove_member_use_case))
-      .app_data(web::Data::new(deps.get_details_use_case))
+      .app_data(web::Data::new(deps.get_details_use_case.clone()))
       .app_data(web::Data::new(deps.update_profile_use_case))
+      .app_data(web::Data::new(deps.update_storage_config_use_case))
       .app_data(web::Data::new(deps.user_repo))
       .app_data(web::Data::new(deps.member_repo))
       .route("", web::get().to(company_web::companies_page))
@@ -316,11 +327,15 @@ pub fn configure_web_routes(cfg: &mut web::ServiceConfig, deps: WebRouteDependen
       )
       .route(
         "/{company_id}/settings",
-        web::get().to(company_web::company_settings_page),
+        web::get().to(company_settings::company_settings_page),
       )
       .route(
         "/{company_id}/settings",
-        web::post().to(company_web::update_company_settings_submit),
+        web::post().to(company_settings::update_company_profile),
+      )
+      .route(
+        "/{company_id}/settings/storage",
+        web::post().to(company_settings::update_storage_config),
       )
       .route(
         "/{company_id}/members",
@@ -467,6 +482,7 @@ pub fn configure_company_scoped_routes(cfg: &mut web::ServiceConfig, deps: &WebR
         web::post().to(invoices_web::create_invoice_from_template),
       )
       // Regular invoice routes - {id} patterns must come after specific literal paths
+      // Note: /invoices/{id}/html is a public route (defined outside this scope for wkhtmltopdf)
       .route(
         "/invoices/{id}",
         web::get().to(invoices_web::invoice_details_page),
