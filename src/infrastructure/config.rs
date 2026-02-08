@@ -125,6 +125,12 @@ impl Config {
   /// - `TAXBYTE_SECURITY__REMEMBER_ME_TTL_SECONDS=2592000`
   /// - `TAXBYTE_RATE_LIMIT__LOGIN_MAX_ATTEMPTS=5`
   /// - `TAXBYTE_RATE_LIMIT__LOGIN_WINDOW_SECONDS=300`
+  /// - `TAXBYTE_GOOGLE_DRIVE__OAUTH_CLIENT_ID=your-client-id.apps.googleusercontent.com`
+  /// - `TAXBYTE_GOOGLE_DRIVE__OAUTH_CLIENT_SECRET=your-client-secret`
+  /// - `TAXBYTE_GOOGLE_DRIVE__OAUTH_REDIRECT_URL=http://localhost:8080/oauth/google/callback`
+  ///
+  /// Note: Use double underscores (__) to separate the section name from the field name.
+  /// For nested config like `google_drive.oauth_client_id`, use `GOOGLE_DRIVE__OAUTH_CLIENT_ID`.
   ///
   /// # Errors
   ///
@@ -168,6 +174,7 @@ mod tests {
             [server]
             host = "127.0.0.1"
             port = 8080
+            base_url = "http://127.0.0.1:8080"
 
             [database]
             url = "postgres://localhost/taxbyte"
@@ -180,6 +187,7 @@ mod tests {
             password_min_length = 8
             session_ttl_seconds = 3600
             remember_me_ttl_seconds = 2592000
+            encryption_key_base64 = "2e26WueyLmI1t+XuJIu/o74VCrjf8yebwywMqEE8g5k="
 
             [rate_limit]
             login_max_attempts = 5
@@ -193,6 +201,7 @@ mod tests {
 
     assert_eq!(config.server.host, "127.0.0.1");
     assert_eq!(config.server.port, 8080);
+    assert_eq!(config.server.base_url, "http://127.0.0.1:8080");
     assert_eq!(config.database.url, "postgres://localhost/taxbyte");
     assert_eq!(config.database.max_connections, 5);
     assert_eq!(config.database.connect_timeout_seconds, 5); // default

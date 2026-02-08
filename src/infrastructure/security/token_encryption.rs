@@ -29,9 +29,12 @@ impl AesTokenEncryption {
   /// * `key_base64` - Base64-encoded 32-byte (256-bit) encryption key
   ///
   /// # Example
-  /// ```rust
+  /// ```rust,no_run
+  /// use taxbyte::infrastructure::security::AesTokenEncryption;
+  ///
   /// // Generate key with: openssl rand -base64 32
   /// let encryption = AesTokenEncryption::new("your-base64-key-here")?;
+  /// # Ok::<(), taxbyte::infrastructure::security::EncryptionError>(())
   /// ```
   pub fn new(key_base64: &str) -> Result<Self, EncryptionError> {
     let key_bytes = general_purpose::STANDARD

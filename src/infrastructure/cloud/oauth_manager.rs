@@ -177,7 +177,7 @@ mod tests {
     )
     .unwrap();
 
-    let (auth_url, csrf_token) = manager.get_authorization_url();
+    let (auth_url, csrf_token) = manager.get_authorization_url(None);
 
     assert!(auth_url.contains("accounts.google.com"));
     assert!(auth_url.contains("drive.file"));

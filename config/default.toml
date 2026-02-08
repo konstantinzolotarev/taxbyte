@@ -59,8 +59,13 @@ default_invoice_subfolder = "Invoices"
 parent_folder_id = ""
 # OAuth 2.0 credentials (recommended)
 # Get from Google Cloud Console: https://console.cloud.google.com/
-oauth_client_id = ""
-oauth_client_secret = ""
+# IMPORTANT: Set these via environment variables to keep credentials secure.
+# Use TAXBYTE_GOOGLE_DRIVE__OAUTH_CLIENT_ID and TAXBYTE_GOOGLE_DRIVE__OAUTH_CLIENT_SECRET
+# (note the double underscore __ separator). See .env.example for details.
+# Leave these empty or remove them - they will be overridden by environment variables.
+# oauth_client_id = ""
+# oauth_client_secret = ""
+# OAuth redirect URL (can be set here or via TAXBYTE_GOOGLE_DRIVE__OAUTH_REDIRECT_URL)
 oauth_redirect_url = "http://localhost:8080/oauth/google/callback"
 
 [pdf]
