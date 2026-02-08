@@ -3,13 +3,17 @@ use std::str::FromStr;
 use std::sync::Arc;
 use uuid::Uuid;
 
+use crate::application::company::ConnectGoogleDriveUseCase;
 use crate::application::invoice::get_invoice_details::{
   GetInvoiceDetailsCommand, GetInvoiceDetailsUseCase,
 };
+use crate::domain::company::CompanyRepository;
 use crate::domain::invoice::errors::InvoiceError;
 use crate::domain::invoice::ports::PdfGenerator;
 use crate::domain::invoice::{InvoiceService, InvoiceStatus};
 use crate::infrastructure::cloud::CloudStorageFactory;
+use crate::infrastructure::config::Config;
+use crate::infrastructure::security::AesTokenEncryption;
 
 #[derive(Debug, Deserialize)]
 pub struct ChangeInvoiceStatusCommand {
@@ -29,6 +33,10 @@ pub struct ChangeInvoiceStatusUseCase {
   invoice_service: Arc<InvoiceService>,
   pdf_generator: Arc<dyn PdfGenerator>,
   get_invoice_details: Arc<GetInvoiceDetailsUseCase>,
+  company_repo: Arc<dyn CompanyRepository>,
+  token_encryption: Arc<AesTokenEncryption>,
+  connect_google_drive: Arc<ConnectGoogleDriveUseCase>,
+  config: Arc<Config>,
 }
 
 impl ChangeInvoiceStatusUseCase {
@@ -36,11 +44,19 @@ impl ChangeInvoiceStatusUseCase {
     invoice_service: Arc<InvoiceService>,
     pdf_generator: Arc<dyn PdfGenerator>,
     get_invoice_details: Arc<GetInvoiceDetailsUseCase>,
+    company_repo: Arc<dyn CompanyRepository>,
+    token_encryption: Arc<AesTokenEncryption>,
+    connect_google_drive: Arc<ConnectGoogleDriveUseCase>,
+    config: Arc<Config>,
   ) -> Self {
     Self {
       invoice_service,
       pdf_generator,
       get_invoice_details,
+      company_repo,
+      token_encryption,
+      connect_google_drive,
+      config,
     }
   }
 
@@ -74,10 +90,36 @@ impl ChangeInvoiceStatusUseCase {
         .generate_invoice_pdf(command.invoice_id, &invoice_details)
         .await?;
 
-      // Create cloud storage adapter based on company configuration
-      let cloud_storage = CloudStorageFactory::create(
-        invoice_details.company.storage_provider.as_ref(),
-        invoice_details.company.storage_config.as_ref(),
+      // Fetch full company entity with OAuth tokens
+      let company = self
+        .company_repo
+        .find_by_id(invoice_details.company_id)
+        .await
+        .map_err(|e| {
+          InvoiceError::CloudStorageUploadFailed(format!("Failed to fetch company: {}", e))
+        })?
+        .ok_or_else(|| InvoiceError::CloudStorageUploadFailed("Company not found".to_string()))?;
+
+      // Extract OAuth credentials from config
+      let (oauth_client_id, oauth_client_secret) =
+        if let Some(ref drive_config) = self.config.google_drive {
+          (
+            drive_config.oauth_client_id.as_deref(),
+            drive_config.oauth_client_secret.as_deref(),
+          )
+        } else {
+          (None, None)
+        };
+
+      // Create cloud storage adapter with OAuth support
+      let cloud_storage = CloudStorageFactory::create_with_oauth(
+        company.storage_provider.as_ref(),
+        company.storage_config.as_ref(),
+        &company,
+        &self.token_encryption,
+        Some(&self.connect_google_drive),
+        oauth_client_id,
+        oauth_client_secret,
       )
       .await;
 

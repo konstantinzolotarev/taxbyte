@@ -16,10 +16,11 @@ use taxbyte::{
     RegisterUserUseCase,
   },
   application::company::{
-    AddCompanyMemberUseCase, ArchiveBankAccountUseCase, CreateBankAccountUseCase,
-    CreateCompanyUseCase, GetBankAccountsUseCase, GetCompanyDetailsUseCase,
-    GetUserCompaniesUseCase, RemoveCompanyMemberUseCase, SetActiveBankAccountUseCase,
-    SetActiveCompanyUseCase, UpdateBankAccountUseCase, UpdateCompanyProfileUseCase,
+    AddCompanyMemberUseCase, ArchiveBankAccountUseCase, ConnectGoogleDriveUseCase,
+    CreateBankAccountUseCase, CreateCompanyUseCase, DisconnectGoogleDriveUseCase,
+    GetBankAccountsUseCase, GetCompanyDetailsUseCase, GetUserCompaniesUseCase,
+    RemoveCompanyMemberUseCase, SetActiveBankAccountUseCase, SetActiveCompanyUseCase,
+    TestDriveConnectionUseCase, UpdateBankAccountUseCase, UpdateCompanyProfileUseCase,
   },
   application::invoice::{
     ArchiveCustomerUseCase, ArchiveInvoiceUseCase, ArchiveTemplateUseCase,
@@ -32,6 +33,7 @@ use taxbyte::{
   domain::company::services::CompanyService,
   domain::invoice::{InvoiceService, InvoiceServiceDependencies},
   infrastructure::{
+    cloud::{GoogleOAuthManager, MockOAuthManager, OAuthManager},
     config::Config,
     persistence::postgres::{
       PostgresActiveBankAccountRepository, PostgresActiveCompanyRepository,
@@ -40,7 +42,7 @@ use taxbyte::{
       PostgresInvoiceTemplateLineItemRepository, PostgresInvoiceTemplateRepository,
       PostgresLoginAttemptRepository, PostgresSessionRepository, PostgresUserRepository,
     },
-    security::{Argon2PasswordHasher, SecureTokenGenerator},
+    security::{AesTokenEncryption, Argon2PasswordHasher, SecureTokenGenerator},
   },
 };
 
@@ -260,6 +262,59 @@ async fn main() -> std::io::Result<()> {
   let set_active_bank_account_use_case =
     Arc::new(SetActiveBankAccountUseCase::new(company_service.clone()));
 
+  dbg!(&config);
+  // Initialize OAuth dependencies and use cases
+  let token_encryption = Arc::new(
+    AesTokenEncryption::new(&config.security.encryption_key_base64)
+      .expect("Failed to create token encryption"),
+  );
+
+  let oauth_manager: Option<Arc<dyn OAuthManager>> =
+    if std::env::var("MOCK_OAUTH").unwrap_or_default() == "true" {
+      tracing::info!("Using mock OAuth manager for development");
+      Some(Arc::new(
+        MockOAuthManager::new(
+          "mock-client-id".to_string(),
+          "mock-client-secret".to_string(),
+          "http://localhost:8080/oauth/google/callback".to_string(),
+        )
+        .expect("Failed to create mock OAuth manager"),
+      ))
+    } else if let Some(google_drive_config) = &config.google_drive {
+      if let (Some(client_id), Some(client_secret), Some(redirect_url)) = (
+        &google_drive_config.oauth_client_id,
+        &google_drive_config.oauth_client_secret,
+        &google_drive_config.oauth_redirect_url,
+      ) {
+        Some(Arc::new(
+          GoogleOAuthManager::new(
+            client_id.clone(),
+            client_secret.clone(),
+            redirect_url.clone(),
+          )
+          .expect("Failed to create OAuth manager"),
+        ))
+      } else {
+        tracing::warn!("Google Drive OAuth credentials not configured");
+        None
+      }
+    } else {
+      tracing::warn!("Google Drive configuration not found");
+      None
+    };
+
+  let connect_google_drive_use_case = Arc::new(ConnectGoogleDriveUseCase::new(
+    oauth_manager.clone().expect("OAuth manager not configured"),
+    company_repo.clone(),
+    token_encryption.clone(),
+  ));
+
+  let disconnect_google_drive_use_case =
+    Arc::new(DisconnectGoogleDriveUseCase::new(company_repo.clone()));
+
+  let test_drive_connection_use_case =
+    Arc::new(TestDriveConnectionUseCase::new(company_repo.clone()));
+
   // Initialize customer use cases
   let create_customer_use_case = Arc::new(CreateCustomerUseCase::new(invoice_service.clone()));
   let list_customers_use_case = Arc::new(ListCustomersUseCase::new(invoice_service.clone()));
@@ -306,6 +361,10 @@ async fn main() -> std::io::Result<()> {
     invoice_service.clone(),
     pdf_generator.clone(),
     get_invoice_details_use_case.clone(),
+    company_repo.clone(),
+    token_encryption.clone(),
+    connect_google_drive_use_case.clone(),
+    Arc::new(config.clone()),
   ));
 
   let server_host = config.server.host.clone();
@@ -363,6 +422,10 @@ async fn main() -> std::io::Result<()> {
             list_templates_use_case: list_templates_use_case.clone(),
             create_invoice_from_template_use_case: create_invoice_from_template_use_case.clone(),
             archive_template_use_case: archive_template_use_case.clone(),
+            // OAuth use cases
+            connect_google_drive_use_case: connect_google_drive_use_case.clone(),
+            disconnect_google_drive_use_case: disconnect_google_drive_use_case.clone(),
+            test_drive_connection_use_case: test_drive_connection_use_case.clone(),
           },
         )
       })

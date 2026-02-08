@@ -45,7 +45,8 @@ pub enum StorageConfig {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GoogleDriveConfig {
-  pub service_account_key: String, // Base64 encoded key or path
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub service_account_key: Option<String>, // Base64 encoded key or path (deprecated - use OAuth)
   pub parent_folder_id: Option<String>,
   pub folder_path: Option<String>, // e.g., "Invoices" or "Documents/Invoices"
 }

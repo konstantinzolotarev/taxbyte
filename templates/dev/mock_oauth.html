@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mock Google OAuth Consent</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            max-width: 500px;
+            width: 100%;
+            padding: 40px;
+        }
+        .logo {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .logo svg {
+            width: 48px;
+            height: 48px;
+        }
+        h1 {
+            font-size: 24px;
+            color: #1a202c;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+        .subtitle {
+            color: #718096;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        .info-box {
+            background: #f7fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 30px;
+        }
+        .info-box h2 {
+            font-size: 16px;
+            color: #2d3748;
+            margin-bottom: 15px;
+        }
+        .permission {
+            display: flex;
+            align-items: start;
+            margin-bottom: 12px;
+        }
+        .permission svg {
+            width: 20px;
+            height: 20px;
+            margin-right: 12px;
+            color: #48bb78;
+            flex-shrink: 0;
+        }
+        .permission-text {
+            font-size: 14px;
+            color: #4a5568;
+        }
+        .buttons {
+            display: flex;
+            gap: 12px;
+        }
+        button {
+            flex: 1;
+            padding: 14px 24px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: none;
+        }
+        .btn-primary {
+            background: #4299e1;
+            color: white;
+        }
+        .btn-primary:hover {
+            background: #3182ce;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(66, 153, 225, 0.4);
+        }
+        .btn-secondary {
+            background: #e2e8f0;
+            color: #4a5568;
+        }
+        .btn-secondary:hover {
+            background: #cbd5e0;
+        }
+        .dev-notice {
+            margin-top: 20px;
+            padding: 12px;
+            background: #fff5f5;
+            border: 1px solid #feb2b2;
+            border-radius: 6px;
+            font-size: 12px;
+            color: #c53030;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">
+            <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 12.955 4 4 12.955 4 24s8.955 20 20 20 20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z" fill="#FFC107"/>
+                <path d="M6.306 14.691l6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 16.318 4 9.656 8.337 6.306 14.691z" fill="#FF3D00"/>
+                <path d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238A11.91 11.91 0 0124 36c-5.202 0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z" fill="#4CAF50"/>
+                <path d="M43.611 20.083H42V20H24v8h11.303a12.04 12.04 0 01-4.087 5.571l.003-.002 6.19 5.238C36.971 39.205 44 34 44 24c0-1.341-.138-2.65-.389-3.917z" fill="#1976D2"/>
+            </svg>
+        </div>
+
+        <h1>Mock OAuth Consent</h1>
+        <p class="subtitle">TaxByte Development Mode</p>
+
+        <div class="info-box">
+            <h2>TaxByte wants to access your Google Drive</h2>
+            <div class="permission">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                </svg>
+                <div class="permission-text">Create and edit files in Google Drive</div>
+            </div>
+            <div class="permission">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                </svg>
+                <div class="permission-text">View files created by this app</div>
+            </div>
+        </div>
+
+        <form method="GET" action="{{REDIRECT_URI}}">
+            <input type="hidden" name="code" value="{{AUTH_CODE}}">
+            <input type="hidden" name="state" value="{{STATE}}">
+            <div class="buttons">
+                <button type="button" class="btn-secondary" onclick="window.location.href='/companies'">
+                    Cancel
+                </button>
+                <button type="submit" class="btn-primary">
+                    Grant Access
+                </button>
+            </div>
+        </form>
+
+        <div class="dev-notice">
+            🔧 <strong>Development Mode:</strong> This is a mock OAuth screen for testing.
+            No actual Google authentication is performed.
+        </div>
+    </div>
+</body>
+</html>

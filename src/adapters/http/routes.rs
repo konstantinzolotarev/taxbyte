@@ -6,10 +6,12 @@ use crate::application::auth::{
   RegisterUserUseCase,
 };
 use crate::application::company::{
-  AddCompanyMemberUseCase, ArchiveBankAccountUseCase, CreateBankAccountUseCase,
-  CreateCompanyUseCase, GetBankAccountsUseCase, GetCompanyDetailsUseCase, GetUserCompaniesUseCase,
+  AddCompanyMemberUseCase, ArchiveBankAccountUseCase, ConnectGoogleDriveUseCase,
+  CreateBankAccountUseCase, CreateCompanyUseCase, DisconnectGoogleDriveUseCase,
+  GetBankAccountsUseCase, GetCompanyDetailsUseCase, GetUserCompaniesUseCase,
   RemoveCompanyMemberUseCase, SetActiveBankAccountUseCase, SetActiveCompanyUseCase,
-  UpdateBankAccountUseCase, UpdateCompanyProfileUseCase, UpdateStorageConfigUseCase,
+  TestDriveConnectionUseCase, UpdateBankAccountUseCase, UpdateCompanyProfileUseCase,
+  UpdateStorageConfigUseCase,
 };
 use crate::application::invoice::{
   ArchiveCustomerUseCase, ArchiveInvoiceUseCase, ChangeInvoiceStatusUseCase, CreateCustomerUseCase,
@@ -32,7 +34,7 @@ use super::handlers::company::{
 };
 use super::handlers::{
   bank_accounts, bank_accounts_web, company_settings, company_web, customers_web, get_user,
-  invoices_web, pages, web_auth,
+  invoices_web, oauth_callback, pages, web_auth,
 };
 use super::middleware::{CompanyContextMiddleware, WebAuthMiddleware};
 use super::templates::TemplateEngine;
@@ -79,6 +81,10 @@ pub struct WebRouteDependencies {
   pub create_invoice_from_template_use_case:
     Arc<crate::application::invoice::CreateInvoiceFromTemplateUseCase>,
   pub archive_template_use_case: Arc<crate::application::invoice::ArchiveTemplateUseCase>,
+  // OAuth use cases
+  pub connect_google_drive_use_case: Arc<ConnectGoogleDriveUseCase>,
+  pub disconnect_google_drive_use_case: Arc<DisconnectGoogleDriveUseCase>,
+  pub test_drive_connection_use_case: Arc<TestDriveConnectionUseCase>,
 }
 
 /// Configure authentication routes
@@ -240,6 +246,23 @@ pub fn configure_web_routes(cfg: &mut web::ServiceConfig, deps: WebRouteDependen
       .route(web::get().to(invoices_web::invoice_html_view)),
   );
 
+  // OAuth callback route (requires authentication)
+  cfg.service(
+    web::resource("/oauth/google/callback")
+      .wrap(WebAuthMiddleware::new(deps.auth_service.clone()))
+      .app_data(web::Data::new(deps.connect_google_drive_use_case.clone()))
+      .route(web::get().to(oauth_callback::oauth_callback)),
+  );
+
+  // Development mock OAuth consent screen (only when MOCK_OAUTH=true)
+  if std::env::var("MOCK_OAUTH").unwrap_or_default() == "true" {
+    cfg.service(
+      web::resource("/dev/mock-oauth")
+        .app_data(web::Data::new(deps.templates.clone()))
+        .route(web::get().to(super::handlers::dev_mock_oauth::mock_oauth_page)),
+    );
+  }
+
   // Root route - redirect to dashboard (will redirect to login if not authenticated)
   let active_repo_root = active_repo_for_redirects.clone();
   let member_repo_root = member_repo_for_redirects.clone();
@@ -310,6 +333,9 @@ pub fn configure_web_routes(cfg: &mut web::ServiceConfig, deps: WebRouteDependen
       .app_data(web::Data::new(deps.get_details_use_case.clone()))
       .app_data(web::Data::new(deps.update_profile_use_case))
       .app_data(web::Data::new(deps.update_storage_config_use_case))
+      .app_data(web::Data::new(deps.connect_google_drive_use_case.clone()))
+      .app_data(web::Data::new(deps.disconnect_google_drive_use_case))
+      .app_data(web::Data::new(deps.test_drive_connection_use_case))
       .app_data(web::Data::new(deps.user_repo))
       .app_data(web::Data::new(deps.member_repo))
       .route("", web::get().to(company_web::companies_page))
@@ -336,6 +362,19 @@ pub fn configure_web_routes(cfg: &mut web::ServiceConfig, deps: WebRouteDependen
       .route(
         "/{company_id}/settings/storage",
         web::post().to(company_settings::update_storage_config),
+      )
+      // OAuth routes for Google Drive
+      .route(
+        "/{company_id}/drive/connect",
+        web::post().to(company_settings::initiate_drive_oauth),
+      )
+      .route(
+        "/{company_id}/drive/disconnect",
+        web::post().to(company_settings::disconnect_drive),
+      )
+      .route(
+        "/{company_id}/drive/test",
+        web::post().to(company_settings::test_drive_connection),
       )
       .route(
         "/{company_id}/members",

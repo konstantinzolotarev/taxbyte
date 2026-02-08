@@ -21,7 +21,8 @@ max_connections = 30
 # Database connection timeout in seconds
 connect_timeout_seconds = 5
 # Connection pool acquisition timeout in seconds
-acquire_timeout_seconds = 3
+# Increased to 30s to handle wkhtmltopdf nested requests during PDF generation
+acquire_timeout_seconds = 30
 
 [redis]
 # Redis connection URL
@@ -37,6 +38,10 @@ password_min_length = 12
 session_ttl_seconds = 3600
 # "Remember me" session TTL in seconds (default: 30 days)
 remember_me_ttl_seconds = 2592000
+# Base64-encoded 32-byte encryption key for OAuth tokens
+# MUST be set via environment variable in production
+# Generate with: openssl rand -base64 32
+encryption_key_base64 = "2e26WueyLmI1t+XuJIu/o74VCrjf8yebwywMqEE8g5k="
 
 [rate_limit]
 # Maximum login attempts before rate limiting kicks in
@@ -44,13 +49,19 @@ login_max_attempts = 5
 # Time window for login rate limiting in seconds (default: 5 minutes)
 login_window_seconds = 300
 
-# Google Drive configuration is now per-company
-# Configure storage providers in the company settings UI or database
-# [google_drive]
-# enabled = true
-# service_account_key_path = "./config/google-service-account.json"
-# default_invoice_subfolder = "Invoices"
-# parent_folder_id = ""
+# Google Drive configuration
+# OAuth credentials from Google Cloud Console
+[google_drive]
+enabled = true
+# Legacy service account support (deprecated, use OAuth instead)
+service_account_key_path = "./config/google-service-account.json"
+default_invoice_subfolder = "Invoices"
+parent_folder_id = ""
+# OAuth 2.0 credentials (recommended)
+# Get from Google Cloud Console: https://console.cloud.google.com/
+oauth_client_id = ""
+oauth_client_secret = ""
+oauth_redirect_url = "http://localhost:8080/oauth/google/callback"
 
 [pdf]
 # Directory for storing generated PDF files

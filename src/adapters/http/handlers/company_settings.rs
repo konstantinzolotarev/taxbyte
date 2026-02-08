@@ -6,7 +6,9 @@ use uuid::Uuid;
 use crate::adapters::http::errors::ApiError;
 use crate::adapters::http::templates::TemplateEngine;
 use crate::application::company::{
-  CompanyAddressData, GetCompanyDetailsCommand, GetCompanyDetailsUseCase,
+  CompanyAddressData, ConnectGoogleDriveUseCase, DisconnectGoogleDriveCommand,
+  DisconnectGoogleDriveUseCase, GetCompanyDetailsCommand, GetCompanyDetailsUseCase,
+  InitiateOAuthCommand, TestDriveConnectionCommand, TestDriveConnectionUseCase,
   UpdateCompanyProfileCommand, UpdateCompanyProfileUseCase, UpdateStorageConfigCommand,
   UpdateStorageConfigUseCase,
 };
@@ -32,6 +34,7 @@ fn get_user(req: &HttpRequest) -> Result<User, ApiError> {
 pub async fn company_settings_page(
   req: HttpRequest,
   path: web::Path<Uuid>,
+  query: web::Query<std::collections::HashMap<String, String>>,
   templates: web::Data<TemplateEngine>,
   get_company_details: web::Data<Arc<GetCompanyDetailsUseCase>>,
 ) -> Result<HttpResponse, ApiError> {
@@ -50,6 +53,11 @@ pub async fn company_settings_page(
   context.insert("user", &user);
   context.insert("company", &company_details);
   context.insert("current_page", "settings");
+
+  // Check for success parameter
+  if let Some(success) = query.get("success") {
+    context.insert("success", success);
+  }
 
   let html = templates
     .render("pages/company_settings.html.tera", &context)
@@ -80,24 +88,26 @@ pub async fn update_storage_config(
   let user = get_user(&req)?;
   let company_id = path.into_inner();
 
+  tracing::info!(
+    "Updating storage config for company {}: provider={}",
+    company_id,
+    form.storage_provider
+  );
+
   // Build storage config JSON based on provider
   let storage_config_json = match form.storage_provider.as_str() {
     "google_drive" => {
-      if let Some(key) = &form.google_drive_key {
-        Some(
-          serde_json::json!({
-            "provider": "google_drive",
-            "service_account_key": key,
-            "parent_folder_id": form.google_drive_folder_id,
-            "folder_path": "Invoices"
-          })
-          .to_string(),
-        )
-      } else {
-        return Err(ApiError::Validation(
-          "Google Drive service account key is required".to_string(),
-        ));
-      }
+      // For OAuth-based Google Drive, we don't need service account key
+      // OAuth tokens are stored separately in the database
+      // Just store the basic configuration
+      Some(
+        serde_json::json!({
+          "provider": "google_drive",
+          "parent_folder_id": form.google_drive_folder_id,
+          "folder_path": "Invoices"
+        })
+        .to_string(),
+      )
     }
     "s3" => {
       if let (Some(bucket), Some(region), Some(access_key), Some(secret_key)) = (
@@ -142,10 +152,18 @@ pub async fn update_storage_config(
     })
     .await?;
 
+  tracing::info!(
+    "Storage config updated successfully for company {}",
+    company_id
+  );
+
   // Redirect back to settings page with success message
   Ok(
     HttpResponse::SeeOther()
-      .insert_header(("Location", format!("/companies/{}/settings", company_id)))
+      .insert_header((
+        "Location",
+        format!("/companies/{}/settings?success=storage_updated", company_id),
+      ))
       .finish(),
   )
 }
@@ -253,4 +271,86 @@ pub async fn update_company_profile(
       )
     }
   }
+}
+
+/// POST /companies/:id/drive/connect - Initiate OAuth flow for Google Drive
+pub async fn initiate_drive_oauth(
+  req: HttpRequest,
+  path: web::Path<Uuid>,
+  use_case: web::Data<Arc<ConnectGoogleDriveUseCase>>,
+) -> Result<HttpResponse, ApiError> {
+  let user = get_user(&req)?;
+  let company_id = path.into_inner();
+
+  // TODO: Verify user has owner/admin role
+
+  // Initiate OAuth flow
+  let response = use_case
+    .initiate_oauth(InitiateOAuthCommand {
+      company_id,
+      user_id: user.id,
+    })
+    .await?;
+
+  // TODO: Store state_token in Redis with company_id for CSRF validation
+  // For now, we'll encode company_id in the state parameter
+
+  // Redirect to Google OAuth consent screen
+  Ok(
+    HttpResponse::Found()
+      .insert_header(("Location", response.authorization_url))
+      .finish(),
+  )
+}
+
+/// POST /companies/:id/drive/disconnect - Disconnect Google Drive
+pub async fn disconnect_drive(
+  req: HttpRequest,
+  path: web::Path<Uuid>,
+  use_case: web::Data<Arc<DisconnectGoogleDriveUseCase>>,
+) -> Result<HttpResponse, ApiError> {
+  let user = get_user(&req)?;
+  let company_id = path.into_inner();
+
+  // TODO: Verify user has owner/admin role
+
+  // Disconnect OAuth
+  use_case
+    .execute(DisconnectGoogleDriveCommand {
+      company_id,
+      user_id: user.id,
+    })
+    .await?;
+
+  // Redirect back to settings with success message
+  Ok(
+    HttpResponse::Found()
+      .insert_header((
+        "Location",
+        format!(
+          "/companies/{}/settings?tab=storage&success=drive_disconnected",
+          company_id
+        ),
+      ))
+      .finish(),
+  )
+}
+
+/// POST /companies/:id/drive/test - Test Google Drive connection
+pub async fn test_drive_connection(
+  path: web::Path<Uuid>,
+  use_case: web::Data<Arc<TestDriveConnectionUseCase>>,
+) -> Result<HttpResponse, ApiError> {
+  let company_id = path.into_inner();
+
+  // Test connection
+  let response = use_case
+    .execute(TestDriveConnectionCommand { company_id })
+    .await?;
+
+  // Return JSON response for HTMX
+  Ok(HttpResponse::Ok().json(serde_json::json!({
+    "success": response.success,
+    "message": response.message,
+  })))
 }

@@ -73,7 +73,7 @@ pub async fn login_submit(
       let cookie = Cookie::build("session_token", response.session_token)
         .path("/")
         .http_only(true)
-        .same_site(SameSite::Strict)
+        .same_site(SameSite::Lax)
         .max_age(max_age)
         .finish();
 
@@ -123,7 +123,7 @@ pub async fn register_submit(
       let cookie = Cookie::build("session_token", response.session_token)
         .path("/")
         .http_only(true)
-        .same_site(SameSite::Strict)
+        .same_site(SameSite::Lax)
         .max_age(actix_web::cookie::time::Duration::hours(1))
         .finish();
 
@@ -166,9 +166,9 @@ pub async fn logout(_req: HttpRequest) -> Result<HttpResponse, actix_web::Error>
     .finish();
 
   Ok(
-    HttpResponse::Ok()
+    HttpResponse::Found()
       .cookie(cookie)
-      .insert_header(("HX-Redirect", "/login"))
+      .insert_header(("Location", "/login"))
       .finish(),
   )
 }

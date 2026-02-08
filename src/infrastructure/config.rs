@@ -61,6 +61,9 @@ pub struct SecurityConfig {
   pub password_min_length: usize,
   pub session_ttl_seconds: u64,
   pub remember_me_ttl_seconds: u64,
+  /// Base64-encoded 32-byte encryption key for OAuth tokens
+  /// Generate with: openssl rand -base64 32
+  pub encryption_key_base64: String,
 }
 
 /// Rate limiting configuration
@@ -77,6 +80,12 @@ pub struct GoogleDriveConfig {
   pub parent_folder_id: Option<String>,
   pub default_invoice_subfolder: String,
   pub enabled: bool,
+  /// OAuth 2.0 client ID from Google Cloud Console
+  pub oauth_client_id: Option<String>,
+  /// OAuth 2.0 client secret from Google Cloud Console
+  pub oauth_client_secret: Option<String>,
+  /// OAuth 2.0 redirect URL (must match Google Cloud Console settings)
+  pub oauth_redirect_url: Option<String>,
 }
 
 /// PDF generation configuration

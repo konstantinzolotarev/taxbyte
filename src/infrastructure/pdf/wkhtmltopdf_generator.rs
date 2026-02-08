@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use std::path::PathBuf;
-use std::process::Command;
+use tokio::process::Command;
 use uuid::Uuid;
 
 use crate::application::invoice::get_invoice_details::InvoiceDetailsResponse;
@@ -31,10 +31,11 @@ impl WkHtmlToPdfGenerator {
     }
   }
 
-  fn verify_wkhtmltopdf_installed(&self) -> Result<(), InvoiceError> {
+  async fn verify_wkhtmltopdf_installed(&self) -> Result<(), InvoiceError> {
     let output = Command::new(&self.wkhtmltopdf_path)
       .arg("--version")
       .output()
+      .await
       .map_err(|e| {
         InvoiceError::PdfGenerationFailed(format!(
           "wkhtmltopdf not found: {}. Please install wkhtmltopdf.",
@@ -60,7 +61,7 @@ impl PdfGenerator for WkHtmlToPdfGenerator {
     _invoice_data: &InvoiceDetailsResponse,
   ) -> Result<String, InvoiceError> {
     // Verify wkhtmltopdf is available
-    self.verify_wkhtmltopdf_installed()?;
+    self.verify_wkhtmltopdf_installed().await?;
 
     // 1. Build URL for invoice HTML view
     let invoice_url = format!("{}/invoices/{}/html", self.server_base_url, invoice_id);
@@ -87,6 +88,7 @@ impl PdfGenerator for WkHtmlToPdfGenerator {
         output_path.to_str().unwrap(),
       ])
       .output()
+      .await
       .map_err(|e| {
         InvoiceError::PdfGenerationFailed(format!("wkhtmltopdf execution failed: {}", e))
       })?;

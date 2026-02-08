@@ -5,7 +5,9 @@ pub mod company;
 pub mod company_settings;
 pub mod company_web;
 pub mod customers_web;
+pub mod dev_mock_oauth;
 pub mod invoices_web;
+pub mod oauth_callback;
 pub mod pages;
 pub mod web_auth;
 

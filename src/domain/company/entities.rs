@@ -23,6 +23,12 @@ pub struct Company {
   pub google_drive_folder_id: Option<String>,
   pub storage_provider: Option<String>,
   pub storage_config: Option<String>,
+  // OAuth 2.0 fields for Google Drive integration
+  pub oauth_access_token: Option<String>,  // Encrypted
+  pub oauth_refresh_token: Option<String>, // Encrypted
+  pub oauth_token_expires_at: Option<DateTime<Utc>>,
+  pub oauth_connected_by: Option<Uuid>, // User who connected
+  pub oauth_connected_at: Option<DateTime<Utc>>,
   pub created_at: DateTime<Utc>,
   pub updated_at: DateTime<Utc>,
 }
@@ -43,6 +49,11 @@ impl Company {
       google_drive_folder_id: None,
       storage_provider: None,
       storage_config: None,
+      oauth_access_token: None,
+      oauth_refresh_token: None,
+      oauth_token_expires_at: None,
+      oauth_connected_by: None,
+      oauth_connected_at: None,
       created_at: now,
       updated_at: now,
     }
@@ -62,6 +73,32 @@ impl Company {
     self.registry_code = profile.registry_code;
     self.vat_number = profile.vat_number;
     self.updated_at = Utc::now();
+  }
+
+  /// Check if OAuth tokens are valid and not expired
+  pub fn has_valid_oauth_token(&self) -> bool {
+    match (
+      &self.oauth_access_token,
+      &self.oauth_refresh_token,
+      self.oauth_token_expires_at,
+    ) {
+      (Some(_), Some(_), Some(expires_at)) => expires_at > Utc::now(),
+      _ => false,
+    }
+  }
+
+  /// Check if OAuth needs refresh (expires within 5 minutes)
+  pub fn needs_token_refresh(&self) -> bool {
+    if let Some(expires_at) = self.oauth_token_expires_at {
+      expires_at < Utc::now() + chrono::Duration::minutes(5)
+    } else {
+      false
+    }
+  }
+
+  /// Check if company has OAuth connection
+  pub fn has_oauth_connection(&self) -> bool {
+    self.oauth_refresh_token.is_some()
   }
 }
 
