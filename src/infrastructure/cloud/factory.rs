@@ -1,4 +1,4 @@
-use super::{GoogleDriveAdapter, GoogleDriveOAuthAdapter, NoOpCloudStorage, S3Adapter};
+use super::{GoogleDriveAdapter, GoogleDriveOAuthAdapter, NoOpCloudStorage};
 use crate::application::company::ConnectGoogleDriveUseCase;
 use crate::domain::company::{Company, StorageConfig, StorageProvider};
 use crate::domain::invoice::errors::InvoiceError;
@@ -15,7 +15,7 @@ impl CloudStorageFactory {
   /// Use `create_with_oauth` for full OAuth support.
   pub async fn create(
     provider: Option<&String>,
-    config_json: Option<&String>,
+    _config_json: Option<&String>,
   ) -> Arc<dyn CloudStorage> {
     // Parse provider type
     let provider_type = provider
@@ -37,39 +37,6 @@ impl CloudStorageFactory {
           "Google Drive selected but OAuth tokens must be accessed via create_with_oauth(). \
            This legacy method doesn't support OAuth. Using NoOpCloudStorage."
         );
-
-        Arc::new(NoOpCloudStorage::new())
-      }
-
-      StorageProvider::S3 => {
-        if let Some(config_str) = config_json {
-          match serde_json::from_str::<StorageConfig>(config_str) {
-            Ok(StorageConfig::S3(config)) => match Self::create_s3_adapter(config).await {
-              Ok(adapter) => {
-                tracing::info!("S3 adapter created for company");
-                return Arc::new(adapter);
-              }
-              Err(e) => {
-                tracing::warn!(
-                  "Failed to create S3 adapter: {}. Using NoOpCloudStorage.",
-                  e
-                );
-              }
-            },
-            Ok(_) => {
-              tracing::warn!(
-                "S3 provider selected but config doesn't match. Using NoOpCloudStorage."
-              );
-            }
-            Err(e) => {
-              tracing::warn!("Failed to parse S3 config: {}. Using NoOpCloudStorage.", e);
-            }
-          }
-        } else {
-          tracing::warn!(
-            "S3 provider selected but no configuration found. Using NoOpCloudStorage."
-          );
-        }
 
         Arc::new(NoOpCloudStorage::new())
       }
@@ -155,39 +122,6 @@ impl CloudStorageFactory {
         } else {
           tracing::warn!(
             "Google Drive provider selected but no configuration found. Using NoOpCloudStorage."
-          );
-        }
-
-        Arc::new(NoOpCloudStorage::new())
-      }
-
-      StorageProvider::S3 => {
-        if let Some(config_str) = config_json {
-          match serde_json::from_str::<StorageConfig>(config_str) {
-            Ok(StorageConfig::S3(config)) => match Self::create_s3_adapter(config).await {
-              Ok(adapter) => {
-                tracing::info!("S3 adapter created for company");
-                return Arc::new(adapter);
-              }
-              Err(e) => {
-                tracing::warn!(
-                  "Failed to create S3 adapter: {}. Using NoOpCloudStorage.",
-                  e
-                );
-              }
-            },
-            Ok(_) => {
-              tracing::warn!(
-                "S3 provider selected but config doesn't match. Using NoOpCloudStorage."
-              );
-            }
-            Err(e) => {
-              tracing::warn!("Failed to parse S3 config: {}. Using NoOpCloudStorage.", e);
-            }
-          }
-        } else {
-          tracing::warn!(
-            "S3 provider selected but no configuration found. Using NoOpCloudStorage."
           );
         }
 
@@ -311,18 +245,5 @@ impl CloudStorageFactory {
     };
 
     GoogleDriveAdapter::new_from_json(&key_content, config.parent_folder_id).await
-  }
-
-  async fn create_s3_adapter(
-    config: crate::domain::company::S3Config,
-  ) -> Result<S3Adapter, InvoiceError> {
-    S3Adapter::new(
-      &config.bucket,
-      &config.region,
-      &config.access_key_id,
-      &config.secret_access_key,
-      config.prefix,
-    )
-    .await
   }
 }

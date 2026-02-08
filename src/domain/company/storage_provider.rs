@@ -8,7 +8,6 @@ pub enum StorageProvider {
   #[default]
   None,
   GoogleDrive,
-  S3,
 }
 
 impl StorageProvider {
@@ -16,7 +15,6 @@ impl StorageProvider {
     match self {
       StorageProvider::None => "none",
       StorageProvider::GoogleDrive => "google_drive",
-      StorageProvider::S3 => "s3",
     }
   }
 }
@@ -28,7 +26,6 @@ impl FromStr for StorageProvider {
     match s.to_lowercase().as_str() {
       "none" | "" => Ok(StorageProvider::None),
       "google_drive" => Ok(StorageProvider::GoogleDrive),
-      "s3" => Ok(StorageProvider::S3),
       _ => Err(format!("Unknown storage provider: {}", s)),
     }
   }
@@ -40,7 +37,6 @@ impl FromStr for StorageProvider {
 pub enum StorageConfig {
   None,
   GoogleDrive(GoogleDriveConfig),
-  S3(S3Config),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -49,13 +45,4 @@ pub struct GoogleDriveConfig {
   pub service_account_key: Option<String>, // Base64 encoded key or path (deprecated - use OAuth)
   pub parent_folder_id: Option<String>,
   pub folder_path: Option<String>, // e.g., "Invoices" or "Documents/Invoices"
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct S3Config {
-  pub bucket: String,
-  pub region: String,
-  pub access_key_id: String,
-  pub secret_access_key: String,
-  pub prefix: Option<String>, // e.g., "invoices/" or "company-name/invoices/"
 }

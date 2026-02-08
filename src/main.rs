@@ -262,7 +262,6 @@ async fn main() -> std::io::Result<()> {
   let set_active_bank_account_use_case =
     Arc::new(SetActiveBankAccountUseCase::new(company_service.clone()));
 
-  dbg!(&config);
   // Initialize OAuth dependencies and use cases
   let token_encryption = Arc::new(
     AesTokenEncryption::new(&config.security.encryption_key_base64)
