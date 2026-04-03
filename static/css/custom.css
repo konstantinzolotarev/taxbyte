@@ -1,5 +1,13 @@
 /* Custom styles for TaxByte */
 
+/* Storage provider selected state */
+.storage-option-selected {
+  background-color: #eff6ff; /* primary-50 */
+}
+.dark .storage-option-selected {
+  background-color: rgba(30, 58, 138, 0.3); /* blue-900/30 */
+}
+
 /* HTMX indicator - hidden by default, shown during requests */
 .htmx-indicator {
   display: none !important;

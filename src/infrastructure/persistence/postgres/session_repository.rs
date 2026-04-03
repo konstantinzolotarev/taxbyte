@@ -243,7 +243,7 @@ mod tests {
       .expect("Failed to connect to test database");
 
     // Run migrations
-    sqlx::migrate!("./migrations")
+    sqlx::migrate!("./migrations/postgresql")
       .run(&pool)
       .await
       .expect("Failed to run migrations");

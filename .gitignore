@@ -9,6 +9,8 @@ ai/
 *.profraw
 tarpaulin-report.html
 
+data/
+
 # Local configuration
 config/local.toml
 .env

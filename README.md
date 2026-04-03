@@ -1,579 +1,330 @@
 # TaxByte
 
-A modern, secure, and scalable tax management platform built with Rust and Actix-Web.
+A modern, secure, and scalable tax & invoice management platform built with Rust and Actix-Web.
 
 ## Project Overview
 
-TaxByte is a comprehensive tax management solution designed to help businesses and individuals manage their tax obligations efficiently. The platform provides secure user authentication, company management, and will include features for tax calculations, filing, and compliance tracking.
+TaxByte is a comprehensive tax and invoice management solution designed to help businesses manage their invoicing, customers, and tax obligations efficiently. The platform provides secure user authentication, multi-tenant company management, invoice generation with PDF export, Google Drive integration, and more.
+
+## Quick Start
+
+### SQLite (Default -- Zero Dependencies)
+
+```bash
+git clone <repository-url>
+cd taxbyte
+cargo run
+```
+
+That's it. No Docker, no PostgreSQL, no Redis. The app creates `./data/taxbyte.db` automatically and starts on `http://127.0.0.1:8080`.
+
+### PostgreSQL (Production)
+
+```bash
+docker-compose up -d    # Start PostgreSQL + Redis
+
+# Configure backend in .env or config/local.toml:
+#   TAXBYTE_DATABASE__BACKEND=postgres
+#   TAXBYTE_DATABASE__URL=postgres://postgres:postgres@localhost:5432/taxbyte
+
+cargo run
+```
+
+## Database Backends
+
+TaxByte supports two database backends, selectable via configuration:
+
+| Backend | Default? | Dependencies | Best For |
+|---|---|---|---|
+| **SQLite** | Yes | None | Local development, small/solo deployments |
+| **PostgreSQL** | No | PostgreSQL + Redis | Production, multi-user deployments |
+
+Configure in `config/default.toml` or via environment variables:
+
+```toml
+[database]
+backend = "sqlite"                              # or "postgres"
+url = "sqlite://./data/taxbyte.db?mode=rwc"     # or postgres://...
+```
+
+Environment variable override: `TAXBYTE_DATABASE__BACKEND=postgres`
+
+When using SQLite:
+- Sessions are stored directly in SQLite (no Redis needed)
+- Database file is created automatically with WAL mode and foreign keys enabled
+- All data types (UUIDs, timestamps, decimals) stored as TEXT for portability
+
+When using PostgreSQL:
+- Redis is required for session caching
+- Native PostgreSQL types (UUID, TIMESTAMPTZ, JSONB, DECIMAL, INET)
+- 15 incremental migration files in `migrations/postgresql/`
 
 ## Architecture Overview
 
-This project follows **Hexagonal Architecture** (also known as Ports and Adapters Architecture) to ensure clean separation of concerns and maintainability:
+This project follows **Hexagonal Architecture** (Ports and Adapters) to ensure clean separation of concerns:
 
 ```
 src/
-├── domain/          # Core business logic and entities
-│   └── auth/        # Authentication domain
-│       ├── entities.rs        # Domain entities (User, Session)
-│       ├── value_objects.rs   # Value objects (Email, Password)
-│       ├── ports.rs           # Port interfaces (repositories)
-│       ├── services.rs        # Domain services
-│       └── errors.rs          # Domain errors
+├── domain/              # Core business logic (no external dependencies)
+│   ├── auth/            # Authentication domain (User, Session, LoginAttempt)
+│   ├── company/         # Company domain (Company, Member, BankAccount)
+│   └── invoice/         # Invoice domain (Customer, Invoice, Template)
 │
-├── application/     # Use cases and application logic
-│   └── auth/        # Authentication use cases
-│       ├── register_user.rs
-│       ├── login_user.rs
-│       ├── logout_user.rs
-│       ├── logout_all_devices.rs
-│       └── get_current_user.rs
+├── application/         # Use cases and orchestration
+│   ├── auth/            # Auth use cases (register, login, logout)
+│   ├── company/         # Company use cases (create, manage members, OAuth)
+│   └── invoice/         # Invoice use cases (CRUD, PDF, templates)
 │
-├── adapters/        # External interfaces
-│   └── http/        # HTTP adapter (REST API)
-│       ├── handlers/          # Request handlers
-│       ├── middleware/        # HTTP middleware
-│       ├── routes.rs          # Route configuration
-│       ├── dtos.rs            # Data transfer objects
-│       └── errors.rs          # HTTP error handling
+├── adapters/            # External interfaces
+│   └── http/            # HTTP adapter (REST API + server-rendered UI)
+│       ├── handlers/    # Request handlers (API + Web)
+│       ├── middleware/   # Auth, request ID, company context
+│       └── routes.rs    # Route configuration
 │
-└── infrastructure/  # Technical implementations
-    ├── config.rs              # Configuration management
-    ├── persistence/           # Database implementations
-    │   └── postgres/          # PostgreSQL repositories
-    │       ├── user_repository.rs
-    │       ├── session_repository.rs
-    │       └── login_attempt_repository.rs
-    └── security/              # Security implementations
-        ├── argon2_hasher.rs
-        └── token_generator.rs
+└── infrastructure/      # Technical implementations
+    ├── config.rs        # Configuration management
+    ├── persistence/
+    │   ├── postgres/    # PostgreSQL repositories (13 files)
+    │   └── sqlite/      # SQLite repositories (13 files)
+    ├── security/        # Argon2 hasher, token generation, AES encryption
+    ├── cloud/           # Google Drive integration, OAuth
+    └── pdf/             # PDF generation (wkhtmltopdf)
 ```
 
 ### Key Architectural Principles
 
 1. **Domain-Driven Design**: Business logic is isolated in the domain layer
-2. **Dependency Inversion**: Core domain depends on abstractions, not implementations
+2. **Dependency Inversion**: Core domain depends on abstractions (`Arc<dyn Trait>`), not implementations
 3. **Testability**: Each layer can be tested independently
-4. **Flexibility**: Easy to swap implementations (e.g., database, web framework)
+4. **Flexibility**: Database backend is swappable at startup via configuration
 
 ## Prerequisites
 
-Before you begin, ensure you have the following installed:
-
-- **Rust** (1.75 or later): [Install Rust](https://www.rust-lang.org/tools/install)
-- **Docker** and **Docker Compose**: [Install Docker](https://docs.docker.com/get-docker/)
-- **PostgreSQL Client Tools** (optional, for manual database access): `brew install postgresql` (macOS)
+- **Rust** (1.85 or later): [Install Rust](https://www.rust-lang.org/tools/install)
+- **Docker** (optional, only needed for PostgreSQL mode): [Install Docker](https://docs.docker.com/get-docker/)
 
 ## Setup Instructions
 
-### 1. Clone the Repository
+### 1. Clone and Run
 
 ```bash
 git clone <repository-url>
 cd taxbyte
+cargo run
 ```
 
-### 2. Start Docker Services
+The server starts on `http://127.0.0.1:8080`. Visit the URL in your browser to access the web UI.
 
-Start PostgreSQL and Redis using Docker Compose:
+### 2. Configure Environment (Optional)
 
-```bash
-docker-compose up -d
-```
-
-Verify services are running:
-
-```bash
-docker-compose ps
-```
-
-You should see both `taxbyte-postgres` and `taxbyte-redis` containers running.
-
-### 3. Configure Environment Variables
-
-Copy the example environment file:
+Copy and edit the environment file for custom settings:
 
 ```bash
 cp .env .env.local
 ```
 
-The default `.env` file contains sensible defaults for local development. Modify `.env.local` if you need custom settings.
+Key configuration (all optional, sensible defaults provided):
 
-### 4. Run Database Migrations
+| Environment Variable | Description | Default |
+|---|---|---|
+| `TAXBYTE_DATABASE__BACKEND` | Database backend (`sqlite` or `postgres`) | `sqlite` |
+| `TAXBYTE_DATABASE__URL` | Database connection URL | `sqlite://./data/taxbyte.db?mode=rwc` |
+| `TAXBYTE_REDIS__URL` | Redis URL (PostgreSQL mode only) | `redis://localhost:6379` |
+| `TAXBYTE_SERVER__PORT` | Server port | `8080` |
+| `TAXBYTE_SECURITY__ENCRYPTION_KEY_BASE64` | AES encryption key for OAuth tokens | (dev default in config) |
+| `RUST_LOG` | Logging level | `taxbyte=debug,actix_web=info` |
 
-The application automatically runs migrations on startup, but you can also run them manually using `sqlx-cli`:
-
-```bash
-# Install sqlx-cli if you haven't already
-cargo install sqlx-cli --no-default-features --features postgres
-
-# Run migrations
-sqlx migrate run --database-url "postgres://postgres:postgres@localhost:5432/taxbyte"
-```
-
-### 5. Build and Run the Application
-
-```bash
-# Build the project
-cargo build
-
-# Run the application
-cargo run
-```
-
-The server will start on `http://127.0.0.1:8080`
-
-### 6. Verify Installation
-
-Check the health endpoint:
+### 3. Verify Installation
 
 ```bash
 curl http://localhost:8080/health
+# Response: OK
 ```
 
-You should receive an `OK` response.
+## Features
 
-## API Endpoints Documentation
+### Implemented
 
-### Health Check
+**Authentication & User Management:**
+- User registration and authentication
+- Session management (Redis with PostgreSQL, SQLite-only otherwise)
+- Password hashing with Argon2id
+- Rate limiting for login attempts
+- Multi-device logout support
+- Cookie-based web authentication + Bearer token API auth
 
-#### GET /health
+**Company Management:**
+- Multi-tenant company system
+- Company creation and switching
+- Team member management (add/remove)
+- Role-based access (owner/admin/member)
+- Company profile with address, tax ID, VAT number
+- Bank account management
 
-Check if the service is running.
+**Invoice Management:**
+- Customer management with addresses
+- Invoice creation and editing
+- Invoice templates (create from invoice, create invoice from template)
+- PDF generation (wkhtmltopdf)
+- Google Drive integration (OAuth 2.0, upload PDFs)
+- Invoice status workflow (draft, sent, paid, cancelled)
 
-**Response:**
+**Infrastructure:**
+- Dual database backend (SQLite default, PostgreSQL optional)
+- Server-side rendered UI (Tera + HTMX + Tailwind CSS + Alpine.js)
+- RESTful HTTP API with actix-web
+- Structured logging with tracing
+- Database migrations (separate for each backend)
+- Configuration management with environment variable overrides
 
-- `200 OK`: Service is healthy
+### Upcoming
+
+- Email verification
+- Password reset flow
+- Two-factor authentication
+- Reporting and analytics
+
+## API Endpoints
+
+### Authentication (REST API - JSON)
+
+| Method | Path | Description | Auth |
+|---|---|---|---|
+| POST | `/api/v1/auth/register` | Register user | No |
+| POST | `/api/v1/auth/login` | Login | No |
+| POST | `/api/v1/auth/logout` | Logout current session | Bearer |
+| POST | `/api/v1/auth/logout-all` | Logout all devices | Bearer |
+| GET | `/api/v1/auth/me` | Get current user | Bearer |
+
+### Companies (REST API - JSON)
+
+| Method | Path | Description | Auth |
+|---|---|---|---|
+| POST | `/api/v1/companies` | Create company | Bearer |
+| GET | `/api/v1/companies` | List user's companies | Bearer |
+| POST | `/api/v1/companies/active` | Set active company | Bearer |
+| POST | `/api/v1/companies/:id/members` | Add member | Bearer |
+| DELETE | `/api/v1/companies/:id/members/:user_id` | Remove member | Bearer |
+
+### Customers & Invoices (REST API - JSON)
+
+| Method | Path | Description | Auth |
+|---|---|---|---|
+| POST | `/api/v1/customers` | Create customer | Bearer |
+| GET | `/api/v1/customers` | List customers | Bearer |
+| POST | `/api/v1/invoices` | Create invoice | Bearer |
+| GET | `/api/v1/invoices` | List invoices | Bearer |
+
+### Web UI (Server-Rendered HTML)
+
+| Path | Description |
+|---|---|
+| `/login` | Login page |
+| `/register` | Register page |
+| `/dashboard` | Dashboard (authenticated) |
+| `/companies` | Company management |
+| `/companies/:id/members` | Team members |
+| `/customers` | Customer management |
+| `/invoices` | Invoice management |
+
+## Testing
 
 ```bash
-curl http://localhost:8080/health
-```
-
-### Authentication Endpoints
-
-All authentication endpoints are prefixed with `/api/v1/auth`.
-
-#### POST /api/v1/auth/register
-
-Register a new user account.
-
-**Request Body:**
-
-```json
-{
-  "email": "user@example.com",
-  "password": "SecurePassword123!",
-  "full_name": "John Doe"
-}
-```
-
-**Validation Rules:**
-
-- Email: Valid email format
-- Password: Minimum 12 characters (configurable)
-- Full Name: Not empty, max 255 characters
-
-**Response:**
-
-- `201 Created`: User successfully registered
-
-```json
-{
-  "id": "uuid",
-  "email": "user@example.com",
-  "full_name": "John Doe",
-  "created_at": "2026-01-31T12:00:00Z"
-}
-```
-
-- `400 Bad Request`: Validation error
-- `409 Conflict`: Email already exists
-
-**Example:**
-
-```bash
-curl -X POST http://localhost:8080/api/v1/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "user@example.com",
-    "password": "SecurePassword123!",
-    "full_name": "John Doe"
-  }'
-```
-
-#### POST /api/v1/auth/login
-
-Authenticate and create a session.
-
-**Request Body:**
-
-```json
-{
-  "email": "user@example.com",
-  "password": "SecurePassword123!",
-  "remember_me": false
-}
-```
-
-**Response:**
-
-- `200 OK`: Login successful
-
-```json
-{
-  "session_token": "generated-session-token",
-  "user": {
-    "id": "uuid",
-    "email": "user@example.com",
-    "full_name": "John Doe",
-    "created_at": "2026-01-31T12:00:00Z"
-  },
-  "expires_at": "2026-01-31T13:00:00Z"
-}
-```
-
-- `401 Unauthorized`: Invalid credentials
-- `429 Too Many Requests`: Rate limit exceeded (5 attempts per 5 minutes)
-
-**Example:**
-
-```bash
-curl -X POST http://localhost:8080/api/v1/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "user@example.com",
-    "password": "SecurePassword123!",
-    "remember_me": false
-  }'
-```
-
-#### POST /api/v1/auth/logout
-
-Logout and invalidate current session.
-
-**Headers:**
-
-- `Authorization: Bearer <session-token>`
-
-**Response:**
-
-- `200 OK`: Logout successful
-
-```json
-{
-  "message": "Logged out successfully"
-}
-```
-
-- `401 Unauthorized`: Invalid or expired session token
-
-**Example:**
-
-```bash
-curl -X POST http://localhost:8080/api/v1/auth/logout \
-  -H "Authorization: Bearer <session-token>"
-```
-
-#### POST /api/v1/auth/logout-all
-
-Logout from all devices (invalidate all sessions).
-
-**Headers:**
-
-- `Authorization: Bearer <session-token>`
-
-**Response:**
-
-- `200 OK`: All sessions invalidated
-
-```json
-{
-  "message": "Logged out from all devices"
-}
-```
-
-- `401 Unauthorized`: Invalid or expired session token
-
-**Example:**
-
-```bash
-curl -X POST http://localhost:8080/api/v1/auth/logout-all \
-  -H "Authorization: Bearer <session-token>"
-```
-
-#### GET /api/v1/auth/me
-
-Get current authenticated user information.
-
-**Headers:**
-
-- `Authorization: Bearer <session-token>`
-
-**Response:**
-
-- `200 OK`: User information retrieved
-
-```json
-{
-  "id": "uuid",
-  "email": "user@example.com",
-  "full_name": "John Doe",
-  "created_at": "2026-01-31T12:00:00Z"
-}
-```
-
-- `401 Unauthorized`: Invalid or expired session token
-
-**Example:**
-
-```bash
-curl http://localhost:8080/api/v1/auth/me \
-  -H "Authorization: Bearer <session-token>"
-```
-
-## Testing Instructions
-
-### Running Tests
-
-```bash
-# Run all tests
+# Run all unit tests
 cargo test
 
-# Run tests with output
+# Run with output
 cargo test -- --nocapture
 
-# Run specific test
-cargo test test_name
-
-# Run tests in a specific module
+# Run specific test module
 cargo test domain::auth
+
+# Integration tests (requires Docker for PostgreSQL tests)
+cargo test -- --ignored
 ```
 
-### Integration Tests
+Integration tests use testcontainers to spin up real PostgreSQL instances automatically.
 
-Integration tests use testcontainers to spin up real PostgreSQL and Redis instances. Make sure Docker is running before executing integration tests.
+## Code Quality
 
 ```bash
-# Run integration tests only
-cargo test --test '*'
+cargo fmt                 # Format code
+cargo clippy              # Lint
+cargo check               # Quick compile check
 ```
 
-### Code Coverage
+## Database Migrations
 
-```bash
-# Install tarpaulin
-cargo install cargo-tarpaulin
+All migrations live under `migrations/`, organized by backend:
 
-# Generate coverage report
-cargo tarpaulin --out Html --output-dir coverage
+```
+migrations/
+├── postgresql/    # 15 incremental migration files
+└── sqlite/        # 1 consolidated schema file
 ```
 
-### Linting and Formatting
+### SQLite
+
+SQLite uses a single consolidated migration file: `migrations/sqlite/20260131000001_initial_schema.sql`
+
+When adding schema changes, update this file to reflect the final desired schema state.
+
+### PostgreSQL
+
+PostgreSQL uses incremental migration files in `migrations/postgresql/`:
 
 ```bash
-# Check formatting
-cargo fmt -- --check
+# Create a new migration
+sqlx migrate add -r --source migrations/postgresql <migration_name>
 
-# Format code
-cargo fmt
-
-# Run clippy
-cargo clippy -- -D warnings
+# Run migrations manually
+sqlx migrate run --source migrations/postgresql --database-url "postgres://postgres:postgres@localhost:5432/taxbyte"
 ```
 
-## Configuration Options
+**Important:** When changing the schema, update both `migrations/postgresql/` (new incremental file) and `migrations/sqlite/` (update consolidated file).
 
-Configuration is managed through a combination of:
-
-1. **config/default.toml**: Default configuration values
-2. **Environment variables**: Override specific values
-3. **.env file**: Local environment variables (not committed to git)
-
-### Configuration Files
-
-- `config/default.toml`: Default configuration (committed to git)
-- `config/local.toml`: Local overrides (gitignored)
-- `.env`: Environment variables for local development
-
-### Environment Variable Mapping
-
-Environment variables use the `TAXBYTE_` prefix (optional, can also use plain variable names):
-
-| Environment Variable      | Config Path                        | Default Value                                         |
-| ------------------------- | ---------------------------------- | ----------------------------------------------------- |
-| `SERVER_HOST`             | `server.host`                      | `127.0.0.1`                                           |
-| `SERVER_PORT`             | `server.port`                      | `8080`                                                |
-| `DATABASE_URL`            | `database.url`                     | `postgres://postgres:postgres@localhost:5432/taxbyte` |
-| `REDIS_URL`               | `redis.url`                        | `redis://localhost:6379`                              |
-| `PASSWORD_MIN_LENGTH`     | `security.password_min_length`     | `12`                                                  |
-| `SESSION_TTL_SECONDS`     | `security.session_ttl_seconds`     | `3600` (1 hour)                                       |
-| `REMEMBER_ME_TTL_SECONDS` | `security.remember_me_ttl_seconds` | `2592000` (30 days)                                   |
-| `LOGIN_MAX_ATTEMPTS`      | `rate_limit.login_max_attempts`    | `5`                                                   |
-| `LOGIN_WINDOW_SECONDS`    | `rate_limit.login_window_seconds`  | `300` (5 minutes)                                     |
-
-### Logging Configuration
-
-Set the `RUST_LOG` environment variable to control logging levels:
+## Docker Commands (PostgreSQL Mode)
 
 ```bash
-# Default
-RUST_LOG=taxbyte=debug,actix_web=info
+docker-compose up -d          # Start PostgreSQL + Redis
+docker-compose down           # Stop services
+docker-compose down -v        # Stop and reset all data
+docker-compose logs -f        # View logs
 
-# More verbose
-RUST_LOG=taxbyte=trace,actix_web=debug
-
-# Production
-RUST_LOG=taxbyte=info,actix_web=warn
-```
-
-## Development Workflow
-
-### Making Changes
-
-1. Create a feature branch
-2. Make your changes
-3. Run tests: `cargo test`
-4. Run linter: `cargo clippy`
-5. Format code: `cargo fmt`
-6. Commit and push
-
-### Database Migrations
-
-Create a new migration:
-
-```bash
-sqlx migrate add <migration_name>
-```
-
-This creates a new SQL file in the `migrations/` directory. Edit the file to add your schema changes.
-
-### Adding New Dependencies
-
-```bash
-cargo add <package-name>
-
-# For dev dependencies
-cargo add --dev <package-name>
-```
-
-## Docker Commands
-
-### Start Services
-
-```bash
-docker-compose up -d
-```
-
-### Stop Services
-
-```bash
-docker-compose down
-```
-
-### View Logs
-
-```bash
-# All services
-docker-compose logs -f
-
-# Specific service
-docker-compose logs -f postgres
-docker-compose logs -f redis
-```
-
-### Reset Database
-
-```bash
-# Stop and remove containers, volumes
-docker-compose down -v
-
-# Start fresh
-docker-compose up -d
-```
-
-### Access PostgreSQL
-
-```bash
-# Using docker exec
+# Access PostgreSQL
 docker exec -it taxbyte-postgres psql -U taxbyte -d taxbyte
 
-# Using local psql client
-psql postgres://postgres:postgres@localhost:5432/taxbyte
-```
-
-### Access Redis
-
-```bash
-# Using docker exec
+# Access Redis
 docker exec -it taxbyte-redis redis-cli
-
-# Test connection
-docker exec -it taxbyte-redis redis-cli ping
 ```
+
+## Configuration
+
+Configuration is loaded in priority order (later overrides earlier):
+
+1. `config/default.toml` -- Default values (committed)
+2. `config/local.toml` -- Local overrides (gitignored)
+3. `config/{RUN_MODE}.toml` -- Environment-specific (optional)
+4. Environment variables with `TAXBYTE_` prefix (highest priority)
+
+Environment variables use double underscores as separators: `TAXBYTE_DATABASE__BACKEND=postgres`
 
 ## Troubleshooting
 
-### Port Already in Use
+### SQLite Mode
 
-If ports 5432 or 6379 are already in use, modify the port mappings in `docker-compose.yml` and update `.env` accordingly.
+**"Failed to run SQLite migrations"**: Check that the `data/` directory is writable. The app creates it automatically, but permissions may vary.
 
-### Database Connection Failed
+**Database locked**: SQLite WAL mode handles most concurrency, but if you see locking errors under heavy load, consider switching to PostgreSQL.
 
-1. Ensure Docker containers are running: `docker-compose ps`
-2. Check container logs: `docker-compose logs postgres`
-3. Verify DATABASE_URL in `.env` matches docker-compose.yml
+### PostgreSQL Mode
 
-### Redis Connection Failed
+**"Database connection timed out"**: Ensure Docker containers are running (`docker-compose ps`) and the `DATABASE_URL` is correct.
 
-1. Ensure Redis container is running: `docker-compose ps`
-2. Check container logs: `docker-compose logs redis`
-3. Verify REDIS_URL in `.env` matches docker-compose.yml
+**"Redis connection failed"**: Redis is required in PostgreSQL mode. Check `docker-compose logs redis`.
 
-### Migration Errors
-
-If migrations fail, you may need to reset the database:
-
-```bash
-docker-compose down -v
-docker-compose up -d
-cargo run
-```
-
-## Project Status
-
-### Completed Features
-
-- User registration with email validation
-- Secure password hashing using Argon2
-- User authentication and session management
-- Session storage in Redis for performance
-- Rate limiting for login attempts
-- Logout and logout-all-devices functionality
-- Health check endpoint
-- Request ID middleware for tracing
-
-### Upcoming Features
-
-- Company management
-- Tax form management
-- Tax calculation engine
-- Document upload and storage
-- Reporting and analytics
-- Email notifications
-- Two-factor authentication
-- OAuth integration
-
-## Contributing
-
-1. Fork the repository
-2. Create your feature branch: `git checkout -b feature/my-new-feature`
-3. Commit your changes: `git commit -am 'Add some feature'`
-4. Push to the branch: `git push origin feature/my-new-feature`
-5. Submit a pull request
+**Migration errors**: Reset with `docker-compose down -v && docker-compose up -d && cargo run`.
 
 ## License
 
 This project is proprietary and confidential.
-
-## Support
-
-For questions or issues, please contact the development team or open an issue on the repository.

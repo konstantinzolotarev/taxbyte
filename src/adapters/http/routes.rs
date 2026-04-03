@@ -179,33 +179,36 @@ async fn redirect_to_default_company(
     );
     // Verify user is still a member
     if member_repo.find_member(id, user.id).await?.is_some() {
-      id
+      Some(id)
     } else {
       tracing::debug!(
         "redirect_to_default_company: user not a member of active company, getting first"
       );
-      // Not a member anymore, get first company
       let memberships = member_repo.find_by_user_id(user.id).await?;
       tracing::debug!(
         "redirect_to_default_company: found {} memberships",
         memberships.len()
       );
-      memberships
-        .first()
-        .map(|m| m.company_id)
-        .ok_or_else(|| ApiError::Validation("No companies found".into()))?
+      memberships.first().map(|m| m.company_id)
     }
   } else {
     tracing::debug!("redirect_to_default_company: no active company, getting first");
-    // No active company set, get first company
     let memberships = member_repo.find_by_user_id(user.id).await?;
     tracing::debug!(
       "redirect_to_default_company: found {} memberships",
       memberships.len()
     );
-    memberships.first().map(|m| m.company_id).ok_or_else(|| {
-      ApiError::Validation("No companies found. Please create a company first.".into())
-    })?
+    memberships.first().map(|m| m.company_id)
+  };
+
+  // If user has no companies, redirect to company creation page
+  let Some(company_id) = company_id else {
+    tracing::debug!("redirect_to_default_company: no companies, redirecting to /companies");
+    return Ok(
+      HttpResponse::Found()
+        .insert_header(("Location", "/companies"))
+        .finish(),
+    );
   };
 
   let redirect_url = format!("/c/{}/{}", company_id, target_page);

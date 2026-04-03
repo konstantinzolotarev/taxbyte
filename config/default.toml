@@ -14,9 +14,11 @@ port = 8080
 base_url = "http://127.0.0.1:8080"
 
 [database]
-# PostgreSQL database URL
-# Format: postgres://username:password@host:port/database
-url = "postgres://postgres:postgres@localhost:5432/taxbyte"
+# Database backend: "sqlite" (default, zero-dependency) or "postgres"
+backend = "sqlite"
+# SQLite database URL (default, works out of the box)
+# For PostgreSQL: url = "postgres://postgres:postgres@localhost:5432/taxbyte"
+url = "sqlite://./data/taxbyte.db?mode=rwc"
 # Maximum number of database connections in the pool
 # Increased to handle wkhtmltopdf callback requests during PDF generation
 max_connections = 30
@@ -43,7 +45,7 @@ remember_me_ttl_seconds = 2592000
 # Base64-encoded 32-byte encryption key for OAuth tokens
 # MUST be set via environment variable: TAXBYTE_SECURITY__ENCRYPTION_KEY_BASE64
 # Generate with: openssl rand -base64 32
-# encryption_key_base64 = ""
+encryption_key_base64 = "2e26WueyLmI1t+XuJIu/o74VCrjf8yebwywMqEE8g5k="
 
 [rate_limit]
 # Maximum login attempts before rate limiting kicks in

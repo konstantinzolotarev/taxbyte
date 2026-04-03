@@ -1,6 +1,25 @@
 use config::{Config as ConfigBuilder, ConfigError, Environment, File};
 use serde::Deserialize;
 use std::env;
+use std::fmt;
+
+/// Database backend selection
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum DatabaseBackend {
+  Postgres,
+  #[default]
+  Sqlite,
+}
+
+impl fmt::Display for DatabaseBackend {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    match self {
+      Self::Postgres => write!(f, "postgres"),
+      Self::Sqlite => write!(f, "sqlite"),
+    }
+  }
+}
 
 // Default value functions for serde
 fn default_server_host() -> String {
@@ -15,8 +34,12 @@ fn default_server_base_url() -> String {
   "http://127.0.0.1:8080".to_string()
 }
 
+fn default_database_backend() -> DatabaseBackend {
+  DatabaseBackend::Sqlite
+}
+
 fn default_database_url() -> String {
-  "postgres://postgres:postgres@localhost:5432/taxbyte".to_string()
+  "sqlite://./data/taxbyte.db?mode=rwc".to_string()
 }
 
 fn default_db_max_connections() -> u32 {
@@ -106,6 +129,8 @@ impl Default for ServerConfig {
 /// Database configuration
 #[derive(Debug, Clone, Deserialize)]
 pub struct DatabaseConfig {
+  #[serde(default = "default_database_backend")]
+  pub backend: DatabaseBackend,
   #[serde(default = "default_database_url")]
   pub url: String,
   #[serde(default = "default_db_max_connections")]
@@ -119,6 +144,7 @@ pub struct DatabaseConfig {
 impl Default for DatabaseConfig {
   fn default() -> Self {
     Self {
+      backend: default_database_backend(),
       url: default_database_url(),
       max_connections: default_db_max_connections(),
       connect_timeout_seconds: default_db_connect_timeout(),
@@ -355,10 +381,8 @@ mod tests {
     assert_eq!(config.server.base_url, "http://127.0.0.1:8080");
 
     // Database defaults
-    assert_eq!(
-      config.database.url,
-      "postgres://postgres:postgres@localhost:5432/taxbyte"
-    );
+    assert_eq!(config.database.backend, DatabaseBackend::Sqlite);
+    assert_eq!(config.database.url, "sqlite://./data/taxbyte.db?mode=rwc");
     assert_eq!(config.database.max_connections, 30);
     assert_eq!(config.database.connect_timeout_seconds, 5);
     assert_eq!(config.database.acquire_timeout_seconds, 30);

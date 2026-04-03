@@ -102,7 +102,7 @@
               <div class="space-y-3" x-data="{ provider: '{{ company.storage_provider | default(value='none') }}' }">
                 <!-- None -->
                 <label class="flex items-start p-4 border-2 rounded-lg cursor-pointer transition-all"
-                  :class="provider === 'none' ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20' : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'"
+                  :class="provider === 'none' ? 'border-primary-500 storage-option-selected' : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'"
                 >
                   <input
                     type="radio"
@@ -120,7 +120,7 @@
 
                 <!-- Google Drive -->
                 <label class="flex items-start p-4 border-2 rounded-lg cursor-pointer transition-all"
-                  :class="provider === 'google_drive' ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20' : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'"
+                  :class="provider === 'google_drive' ? 'border-primary-500 storage-option-selected' : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'"
                 >
                   <input
                     type="radio"
@@ -138,7 +138,7 @@
 
                 <!-- Amazon S3 -->
                 <label class="flex items-start p-4 border-2 rounded-lg cursor-pointer transition-all"
-                  :class="provider === 's3' ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20' : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'"
+                  :class="provider === 's3' ? 'border-primary-500 storage-option-selected' : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'"
                 >
                   <input
                     type="radio"

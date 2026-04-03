@@ -1,6 +1,5 @@
 use actix_files as fs;
 use actix_web::{App, HttpServer, middleware::Logger, web};
-use sqlx::postgres::PgPoolOptions;
 use std::sync::Arc;
 use std::time::Duration;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
@@ -29,19 +28,27 @@ use taxbyte::{
     GetInvoiceDetailsUseCase, ListCustomersUseCase, ListInvoicesUseCase, ListTemplatesUseCase,
     UpdateCustomerUseCase,
   },
-  domain::auth::services::{AuthService, AuthServiceConfig},
-  domain::company::services::CompanyService,
-  domain::invoice::{InvoiceService, InvoiceServiceDependencies},
+  domain::auth::{
+    ports::{LoginAttemptRepository, SessionRepository, UserRepository},
+    services::{AuthService, AuthServiceConfig},
+  },
+  domain::company::{
+    ports::{
+      ActiveBankAccountRepository, ActiveCompanyRepository, BankAccountRepository,
+      CompanyMemberRepository, CompanyRepository,
+    },
+    services::CompanyService,
+  },
+  domain::invoice::{
+    InvoiceService, InvoiceServiceDependencies,
+    ports::{
+      CustomerRepository, InvoiceLineItemRepository, InvoiceRepository,
+      InvoiceTemplateLineItemRepository, InvoiceTemplateRepository,
+    },
+  },
   infrastructure::{
     cloud::{GoogleOAuthManager, MockOAuthManager, OAuthManager},
-    config::Config,
-    persistence::postgres::{
-      PostgresActiveBankAccountRepository, PostgresActiveCompanyRepository,
-      PostgresBankAccountRepository, PostgresCompanyMemberRepository, PostgresCompanyRepository,
-      PostgresCustomerRepository, PostgresInvoiceLineItemRepository, PostgresInvoiceRepository,
-      PostgresInvoiceTemplateLineItemRepository, PostgresInvoiceTemplateRepository,
-      PostgresLoginAttemptRepository, PostgresSessionRepository, PostgresUserRepository,
-    },
+    config::{Config, DatabaseBackend},
     security::{AesTokenEncryption, Argon2PasswordHasher, SecureTokenGenerator},
   },
 };
@@ -64,122 +71,210 @@ async fn main() -> std::io::Result<()> {
 
   // Load configuration
   let config = Config::load().expect("Failed to load configuration");
-  tracing::info!("Configuration loaded successfully");
+  tracing::info!(
+    "Configuration loaded successfully (backend: {})",
+    config.database.backend
+  );
 
-  // Set up database connection pool with timeout
-  tracing::info!("Connecting to database: {}", config.database.url);
+  // Type-erased repository handles (filled by backend-specific init)
+  let user_repo: Arc<dyn UserRepository>;
+  let session_repo: Arc<dyn SessionRepository>;
+  let login_attempt_repo: Arc<dyn LoginAttemptRepository>;
+  let company_repo: Arc<dyn CompanyRepository>;
+  let company_member_repo: Arc<dyn CompanyMemberRepository>;
+  let active_company_repo: Arc<dyn ActiveCompanyRepository>;
+  let bank_account_repo: Arc<dyn BankAccountRepository>;
+  let active_bank_account_repo: Arc<dyn ActiveBankAccountRepository>;
+  let customer_repo: Arc<dyn CustomerRepository>;
+  let invoice_repo: Arc<dyn InvoiceRepository>;
+  let invoice_line_item_repo: Arc<dyn InvoiceLineItemRepository>;
+  let invoice_template_repo: Arc<dyn InvoiceTemplateRepository>;
+  let invoice_template_line_item_repo: Arc<dyn InvoiceTemplateLineItemRepository>;
 
-  let db_pool = tokio::time::timeout(
-    Duration::from_secs(config.database.connect_timeout_seconds),
-    PgPoolOptions::new()
-      .max_connections(config.database.max_connections)
-      .acquire_timeout(Duration::from_secs(config.database.acquire_timeout_seconds))
-      .connect(&config.database.url),
-  )
-  .await
-  .map_err(|_| {
-    tracing::error!(
-      "Database connection timed out after {} seconds. Is PostgreSQL running?",
-      config.database.connect_timeout_seconds
-    );
-    std::io::Error::new(
-      std::io::ErrorKind::TimedOut,
-      format!(
-        "Database connection timed out after {} seconds",
-        config.database.connect_timeout_seconds
-      ),
-    )
-  })?
-  .map_err(|e| {
-    tracing::error!("Failed to connect to database: {}", e);
-    match e {
-      sqlx::Error::Io(_) => std::io::Error::new(
-        std::io::ErrorKind::ConnectionRefused,
-        format!(
-          "Could not connect to database. Is PostgreSQL running at {}?",
-          config.database.url
-        ),
-      ),
-      _ => std::io::Error::other(format!("Database error: {}", e)),
+  match config.database.backend {
+    DatabaseBackend::Postgres => {
+      use sqlx::postgres::PgPoolOptions;
+      use taxbyte::infrastructure::persistence::postgres::*;
+
+      tracing::info!("Connecting to PostgreSQL: {}", config.database.url);
+
+      let db_pool = tokio::time::timeout(
+        Duration::from_secs(config.database.connect_timeout_seconds),
+        PgPoolOptions::new()
+          .max_connections(config.database.max_connections)
+          .acquire_timeout(Duration::from_secs(config.database.acquire_timeout_seconds))
+          .connect(&config.database.url),
+      )
+      .await
+      .map_err(|_| {
+        tracing::error!(
+          "Database connection timed out after {} seconds. Is PostgreSQL running?",
+          config.database.connect_timeout_seconds
+        );
+        std::io::Error::new(
+          std::io::ErrorKind::TimedOut,
+          format!(
+            "Database connection timed out after {} seconds",
+            config.database.connect_timeout_seconds
+          ),
+        )
+      })?
+      .map_err(|e| {
+        tracing::error!("Failed to connect to database: {}", e);
+        match e {
+          sqlx::Error::Io(_) => std::io::Error::new(
+            std::io::ErrorKind::ConnectionRefused,
+            format!(
+              "Could not connect to database. Is PostgreSQL running at {}?",
+              config.database.url
+            ),
+          ),
+          _ => std::io::Error::other(format!("Database error: {}", e)),
+        }
+      })?;
+
+      tracing::info!("PostgreSQL connection pool created");
+
+      // Run PostgreSQL migrations
+      tracing::info!("Running PostgreSQL migrations");
+      sqlx::migrate!("./migrations/postgresql")
+        .run(&db_pool)
+        .await
+        .expect("Failed to run database migrations");
+      tracing::info!("Database migrations completed");
+
+      // Set up Redis connection (required for PostgreSQL mode)
+      tracing::info!("Connecting to Redis: {}", config.redis.url);
+
+      let redis_client = redis::Client::open(config.redis.url.clone()).map_err(|e| {
+        tracing::error!("Failed to create Redis client: {}", e);
+        std::io::Error::new(
+          std::io::ErrorKind::InvalidInput,
+          format!("Invalid Redis URL: {}", e),
+        )
+      })?;
+
+      let redis_conn = tokio::time::timeout(
+        Duration::from_secs(config.redis.connect_timeout_seconds),
+        redis_client.get_connection_manager(),
+      )
+      .await
+      .map_err(|_| {
+        tracing::error!(
+          "Redis connection timed out after {} seconds. Is Redis running?",
+          config.redis.connect_timeout_seconds
+        );
+        std::io::Error::new(
+          std::io::ErrorKind::TimedOut,
+          format!(
+            "Redis connection timed out after {} seconds",
+            config.redis.connect_timeout_seconds
+          ),
+        )
+      })?
+      .map_err(|e| {
+        tracing::error!("Failed to connect to Redis: {}", e);
+        std::io::Error::new(
+          std::io::ErrorKind::ConnectionRefused,
+          format!(
+            "Could not connect to Redis. Is Redis running at {}?",
+            config.redis.url
+          ),
+        )
+      })?;
+
+      tracing::info!("Redis connection established");
+
+      // Initialize PostgreSQL repositories
+      user_repo = Arc::new(PostgresUserRepository::new(db_pool.clone()));
+      session_repo = Arc::new(PostgresSessionRepository::new(
+        db_pool.clone(),
+        redis_conn.clone(),
+      ));
+      login_attempt_repo = Arc::new(PostgresLoginAttemptRepository::new(db_pool.clone()));
+      company_repo = Arc::new(PostgresCompanyRepository::new(db_pool.clone()));
+      company_member_repo = Arc::new(PostgresCompanyMemberRepository::new(db_pool.clone()));
+      active_company_repo = Arc::new(PostgresActiveCompanyRepository::new(db_pool.clone()));
+      bank_account_repo = Arc::new(PostgresBankAccountRepository::new(db_pool.clone()));
+      active_bank_account_repo =
+        Arc::new(PostgresActiveBankAccountRepository::new(db_pool.clone()));
+      customer_repo = Arc::new(PostgresCustomerRepository::new(db_pool.clone()));
+      invoice_repo = Arc::new(PostgresInvoiceRepository::new(db_pool.clone()));
+      invoice_line_item_repo = Arc::new(PostgresInvoiceLineItemRepository::new(db_pool.clone()));
+      invoice_template_repo = Arc::new(PostgresInvoiceTemplateRepository::new(db_pool.clone()));
+      invoice_template_line_item_repo = Arc::new(PostgresInvoiceTemplateLineItemRepository::new(
+        db_pool.clone(),
+      ));
     }
-  })?;
 
-  tracing::info!("Database connection pool created");
+    DatabaseBackend::Sqlite => {
+      use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions};
+      use std::str::FromStr;
+      use taxbyte::infrastructure::persistence::sqlite::*;
 
-  // Run database migrations
-  tracing::info!("Running database migrations");
-  sqlx::migrate!("./migrations")
-    .run(&db_pool)
-    .await
-    .expect("Failed to run database migrations");
-  tracing::info!("Database migrations completed");
+      tracing::info!("Using SQLite backend: {}", config.database.url);
 
-  // Set up Redis connection with timeout
-  tracing::info!("Connecting to Redis: {}", config.redis.url);
+      // Ensure data directory exists for the SQLite database file
+      if let Some(db_path) = config.database.url.strip_prefix("sqlite://") {
+        let db_path = db_path.split('?').next().unwrap_or(db_path);
+        if let Some(parent) = std::path::Path::new(db_path).parent() {
+          std::fs::create_dir_all(parent).map_err(|e| {
+            std::io::Error::new(
+              e.kind(),
+              format!("Failed to create database directory {:?}: {}", parent, e),
+            )
+          })?;
+        }
+      }
 
-  let redis_client = redis::Client::open(config.redis.url.clone()).map_err(|e| {
-    tracing::error!("Failed to create Redis client: {}", e);
-    std::io::Error::new(
-      std::io::ErrorKind::InvalidInput,
-      format!("Invalid Redis URL: {}", e),
-    )
-  })?;
+      let sqlite_options = SqliteConnectOptions::from_str(&config.database.url)
+        .map_err(|e| std::io::Error::other(format!("Invalid SQLite URL: {}", e)))?
+        .create_if_missing(true)
+        .journal_mode(SqliteJournalMode::Wal)
+        .foreign_keys(true);
 
-  let redis_conn = tokio::time::timeout(
-    Duration::from_secs(config.redis.connect_timeout_seconds),
-    redis_client.get_connection_manager(),
-  )
-  .await
-  .map_err(|_| {
-    tracing::error!(
-      "Redis connection timed out after {} seconds. Is Redis running?",
-      config.redis.connect_timeout_seconds
-    );
-    std::io::Error::new(
-      std::io::ErrorKind::TimedOut,
-      format!(
-        "Redis connection timed out after {} seconds",
-        config.redis.connect_timeout_seconds
-      ),
-    )
-  })?
-  .map_err(|e| {
-    tracing::error!("Failed to connect to Redis: {}", e);
-    std::io::Error::new(
-      std::io::ErrorKind::ConnectionRefused,
-      format!(
-        "Could not connect to Redis. Is Redis running at {}?",
-        config.redis.url
-      ),
-    )
-  })?;
+      let db_pool = SqlitePoolOptions::new()
+        .max_connections(config.database.max_connections)
+        .acquire_timeout(Duration::from_secs(config.database.acquire_timeout_seconds))
+        .connect_with(sqlite_options)
+        .await
+        .map_err(|e| {
+          tracing::error!("Failed to connect to SQLite: {}", e);
+          std::io::Error::other(format!("SQLite error: {}", e))
+        })?;
 
-  tracing::info!("Redis connection established");
+      tracing::info!("SQLite connection pool created");
 
-  // Initialize repositories
-  let user_repo = Arc::new(PostgresUserRepository::new(db_pool.clone()));
-  let session_repo = Arc::new(PostgresSessionRepository::new(
-    db_pool.clone(),
-    redis_conn.clone(),
-  ));
-  let login_attempt_repo = Arc::new(PostgresLoginAttemptRepository::new(db_pool.clone()));
+      // Run SQLite migrations
+      tracing::info!("Running SQLite migrations");
+      sqlx::migrate!("./migrations/sqlite")
+        .run(&db_pool)
+        .await
+        .expect("Failed to run SQLite migrations");
+      tracing::info!("SQLite migrations completed");
 
-  // Initialize company repositories
-  let company_repo = Arc::new(PostgresCompanyRepository::new(db_pool.clone()));
-  let company_member_repo = Arc::new(PostgresCompanyMemberRepository::new(db_pool.clone()));
-  let active_company_repo = Arc::new(PostgresActiveCompanyRepository::new(db_pool.clone()));
-  let bank_account_repo = Arc::new(PostgresBankAccountRepository::new(db_pool.clone()));
-  let active_bank_account_repo =
-    Arc::new(PostgresActiveBankAccountRepository::new(db_pool.clone()));
+      tracing::info!("Redis skipped (not needed for SQLite backend)");
 
-  // Initialize invoice repositories
-  let customer_repo = Arc::new(PostgresCustomerRepository::new(db_pool.clone()));
-  let invoice_repo = Arc::new(PostgresInvoiceRepository::new(db_pool.clone()));
-  let invoice_line_item_repo = Arc::new(PostgresInvoiceLineItemRepository::new(db_pool.clone()));
-  let invoice_template_repo = Arc::new(PostgresInvoiceTemplateRepository::new(db_pool.clone()));
-  let invoice_template_line_item_repo = Arc::new(PostgresInvoiceTemplateLineItemRepository::new(
-    db_pool.clone(),
-  ));
+      // Initialize SQLite repositories
+      user_repo = Arc::new(SqliteUserRepository::new(db_pool.clone()));
+      session_repo = Arc::new(SqliteSessionRepository::new(db_pool.clone()));
+      login_attempt_repo = Arc::new(SqliteLoginAttemptRepository::new(db_pool.clone()));
+      company_repo = Arc::new(SqliteCompanyRepository::new(db_pool.clone()));
+      company_member_repo = Arc::new(SqliteCompanyMemberRepository::new(db_pool.clone()));
+      active_company_repo = Arc::new(SqliteActiveCompanyRepository::new(db_pool.clone()));
+      bank_account_repo = Arc::new(SqliteBankAccountRepository::new(db_pool.clone()));
+      active_bank_account_repo = Arc::new(SqliteActiveBankAccountRepository::new(db_pool.clone()));
+      customer_repo = Arc::new(SqliteCustomerRepository::new(db_pool.clone()));
+      invoice_repo = Arc::new(SqliteInvoiceRepository::new(db_pool.clone()));
+      invoice_line_item_repo = Arc::new(SqliteInvoiceLineItemRepository::new(db_pool.clone()));
+      invoice_template_repo = Arc::new(SqliteInvoiceTemplateRepository::new(db_pool.clone()));
+      invoice_template_line_item_repo = Arc::new(SqliteInvoiceTemplateLineItemRepository::new(
+        db_pool.clone(),
+      ));
+    }
+  }
+
+  // --- Everything below is backend-agnostic ---
 
   // Initialize security services
   let password_hasher =

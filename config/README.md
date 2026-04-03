@@ -51,13 +51,24 @@ TAXBYTE_SERVER__BASE_URL=https://example.com
 ### Database Configuration
 
 ```bash
-TAXBYTE_DATABASE__URL=postgres://user:pass@localhost:5432/taxbyte
+# Backend selection: "sqlite" (default, zero-dependency) or "postgres"
+TAXBYTE_DATABASE__BACKEND=sqlite
+
+# SQLite (default)
+TAXBYTE_DATABASE__URL=sqlite://./data/taxbyte.db?mode=rwc
+
+# PostgreSQL (requires Docker or external server)
+# TAXBYTE_DATABASE__BACKEND=postgres
+# TAXBYTE_DATABASE__URL=postgres://user:pass@localhost:5432/taxbyte
+
 TAXBYTE_DATABASE__MAX_CONNECTIONS=30
 TAXBYTE_DATABASE__CONNECT_TIMEOUT_SECONDS=5
 TAXBYTE_DATABASE__ACQUIRE_TIMEOUT_SECONDS=30
 ```
 
-### Redis Configuration
+### Redis Configuration (PostgreSQL mode only)
+
+Redis is only required when using the PostgreSQL backend. In SQLite mode, sessions are stored directly in SQLite.
 
 ```bash
 TAXBYTE_REDIS__URL=redis://localhost:6379
