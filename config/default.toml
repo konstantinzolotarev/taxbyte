@@ -1,7 +1,9 @@
 # Default TaxByte Configuration
-# This file contains the default configuration values for the application.
-# Override these values by creating a config/local.toml file or by setting
-# environment variables with the TAXBYTE_ prefix.
+# This file is OPTIONAL and provides development defaults.
+# All values can be overridden via .env file or environment variables
+# with the TAXBYTE_ prefix (e.g., TAXBYTE_SERVER__PORT=8080).
+# Sensitive values (encryption keys, credentials) should ONLY be set
+# via .env file or environment variables, never in this file.
 
 [server]
 # Server host address
@@ -39,9 +41,9 @@ session_ttl_seconds = 3600
 # "Remember me" session TTL in seconds (default: 30 days)
 remember_me_ttl_seconds = 2592000
 # Base64-encoded 32-byte encryption key for OAuth tokens
-# MUST be set via environment variable in production
+# MUST be set via environment variable: TAXBYTE_SECURITY__ENCRYPTION_KEY_BASE64
 # Generate with: openssl rand -base64 32
-encryption_key_base64 = "2e26WueyLmI1t+XuJIu/o74VCrjf8yebwywMqEE8g5k="
+# encryption_key_base64 = ""
 
 [rate_limit]
 # Maximum login attempts before rate limiting kicks in

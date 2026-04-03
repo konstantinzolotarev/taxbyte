@@ -2,44 +2,113 @@ use config::{Config as ConfigBuilder, ConfigError, Environment, File};
 use serde::Deserialize;
 use std::env;
 
-// Default timeout functions
+// Default value functions for serde
+fn default_server_host() -> String {
+  "127.0.0.1".to_string()
+}
+
+fn default_server_port() -> u16 {
+  8080
+}
+
+fn default_server_base_url() -> String {
+  "http://127.0.0.1:8080".to_string()
+}
+
+fn default_database_url() -> String {
+  "postgres://postgres:postgres@localhost:5432/taxbyte".to_string()
+}
+
+fn default_db_max_connections() -> u32 {
+  30
+}
+
 fn default_db_connect_timeout() -> u64 {
   5
 }
 
 fn default_db_acquire_timeout() -> u64 {
-  3
+  30
+}
+
+fn default_redis_url() -> String {
+  "redis://localhost:6379".to_string()
 }
 
 fn default_redis_connect_timeout() -> u64 {
   5
 }
 
+fn default_password_min_length() -> usize {
+  12
+}
+
+fn default_session_ttl() -> u64 {
+  3600
+}
+
+fn default_remember_me_ttl() -> u64 {
+  2592000
+}
+
+fn default_login_max_attempts() -> u32 {
+  5
+}
+
+fn default_login_window_seconds() -> u64 {
+  300
+}
+
+fn default_pdf_output_dir() -> String {
+  "./data/invoices/pdfs".to_string()
+}
+
 /// Main application configuration
 #[derive(Debug, Clone, Deserialize)]
 pub struct Config {
+  #[serde(default)]
   pub server: ServerConfig,
+  #[serde(default)]
   pub database: DatabaseConfig,
+  #[serde(default)]
   pub redis: RedisConfig,
+  #[serde(default)]
   pub security: SecurityConfig,
+  #[serde(default)]
   pub rate_limit: RateLimitConfig,
   #[serde(default)]
   pub google_drive: Option<GoogleDriveConfig>,
+  #[serde(default)]
   pub pdf: PdfConfig,
 }
 
 /// Server configuration
 #[derive(Debug, Clone, Deserialize)]
 pub struct ServerConfig {
+  #[serde(default = "default_server_host")]
   pub host: String,
+  #[serde(default = "default_server_port")]
   pub port: u16,
+  #[serde(default = "default_server_base_url")]
   pub base_url: String,
+}
+
+impl Default for ServerConfig {
+  fn default() -> Self {
+    Self {
+      host: default_server_host(),
+      port: default_server_port(),
+      base_url: default_server_base_url(),
+    }
+  }
 }
 
 /// Database configuration
 #[derive(Debug, Clone, Deserialize)]
 pub struct DatabaseConfig {
+  #[serde(default = "default_database_url")]
   pub url: String,
+  #[serde(default = "default_db_max_connections")]
   pub max_connections: u32,
   #[serde(default = "default_db_connect_timeout")]
   pub connect_timeout_seconds: u64,
@@ -47,30 +116,77 @@ pub struct DatabaseConfig {
   pub acquire_timeout_seconds: u64,
 }
 
+impl Default for DatabaseConfig {
+  fn default() -> Self {
+    Self {
+      url: default_database_url(),
+      max_connections: default_db_max_connections(),
+      connect_timeout_seconds: default_db_connect_timeout(),
+      acquire_timeout_seconds: default_db_acquire_timeout(),
+    }
+  }
+}
+
 /// Redis configuration
 #[derive(Debug, Clone, Deserialize)]
 pub struct RedisConfig {
+  #[serde(default = "default_redis_url")]
   pub url: String,
   #[serde(default = "default_redis_connect_timeout")]
   pub connect_timeout_seconds: u64,
 }
 
+impl Default for RedisConfig {
+  fn default() -> Self {
+    Self {
+      url: default_redis_url(),
+      connect_timeout_seconds: default_redis_connect_timeout(),
+    }
+  }
+}
+
 /// Security configuration
 #[derive(Debug, Clone, Deserialize)]
 pub struct SecurityConfig {
+  #[serde(default = "default_password_min_length")]
   pub password_min_length: usize,
+  #[serde(default = "default_session_ttl")]
   pub session_ttl_seconds: u64,
+  #[serde(default = "default_remember_me_ttl")]
   pub remember_me_ttl_seconds: u64,
   /// Base64-encoded 32-byte encryption key for OAuth tokens
   /// Generate with: openssl rand -base64 32
+  /// MUST be set via environment variable (TAXBYTE_SECURITY__ENCRYPTION_KEY_BASE64)
   pub encryption_key_base64: String,
+}
+
+impl Default for SecurityConfig {
+  fn default() -> Self {
+    Self {
+      password_min_length: default_password_min_length(),
+      session_ttl_seconds: default_session_ttl(),
+      remember_me_ttl_seconds: default_remember_me_ttl(),
+      encryption_key_base64: String::new(),
+    }
+  }
 }
 
 /// Rate limiting configuration
 #[derive(Debug, Clone, Deserialize)]
 pub struct RateLimitConfig {
+  #[serde(default = "default_login_max_attempts")]
   pub login_max_attempts: u32,
+  #[serde(default = "default_login_window_seconds")]
   pub login_window_seconds: u64,
+}
+
+impl Default for RateLimitConfig {
+  fn default() -> Self {
+    Self {
+      login_max_attempts: default_login_max_attempts(),
+      login_window_seconds: default_login_window_seconds(),
+    }
+  }
 }
 
 /// Google Drive configuration
@@ -91,17 +207,30 @@ pub struct GoogleDriveConfig {
 /// PDF generation configuration
 #[derive(Debug, Clone, Deserialize)]
 pub struct PdfConfig {
+  #[serde(default = "default_pdf_output_dir")]
   pub output_dir: String,
   pub wkhtmltopdf_path: Option<String>,
+}
+
+impl Default for PdfConfig {
+  fn default() -> Self {
+    Self {
+      output_dir: default_pdf_output_dir(),
+      wkhtmltopdf_path: None,
+    }
+  }
 }
 
 impl Config {
   /// Load configuration from files and environment variables
   ///
   /// Configuration is loaded in the following order (later sources override earlier ones):
-  /// 1. config/default.toml
-  /// 2. config/local.toml (if exists)
-  /// 3. Environment variables with TAXBYTE_ prefix
+  /// 1. config/default.toml (optional - provides development defaults)
+  /// 2. config/local.toml (optional - local overrides)
+  /// 3. config/{RUN_MODE}.toml (optional - environment-specific)
+  /// 4. Environment variables with TAXBYTE_ prefix (highest priority, loaded from .env)
+  ///
+  /// The application can be fully configured using only a .env file.
   ///
   /// # Example
   ///
@@ -143,13 +272,13 @@ impl Config {
     let run_mode = env::var("RUN_MODE").unwrap_or_else(|_| "development".into());
 
     let config = ConfigBuilder::builder()
-      // Start with default configuration
-      .add_source(File::with_name("config/default").required(true))
+      // Start with default configuration (optional - can be fully configured via .env)
+      .add_source(File::with_name("config/default").required(false))
       // Add optional local configuration (for local development overrides)
       .add_source(File::with_name("config/local").required(false))
       // Add optional environment-specific configuration
       .add_source(File::with_name(&format!("config/{}", run_mode)).required(false))
-      // Add environment variables with TAXBYTE_ prefix
+      // Add environment variables with TAXBYTE_ prefix (highest priority)
       // Use double underscore as separator: TAXBYTE_SERVER__PORT=8080
       .add_source(
         Environment::with_prefix("TAXBYTE")
@@ -205,7 +334,7 @@ mod tests {
     assert_eq!(config.database.url, "postgres://localhost/taxbyte");
     assert_eq!(config.database.max_connections, 5);
     assert_eq!(config.database.connect_timeout_seconds, 5); // default
-    assert_eq!(config.database.acquire_timeout_seconds, 3); // default
+    assert_eq!(config.database.acquire_timeout_seconds, 30); // default
     assert_eq!(config.redis.url, "redis://localhost");
     assert_eq!(config.redis.connect_timeout_seconds, 5); // default
     assert_eq!(config.security.password_min_length, 8);
@@ -213,5 +342,158 @@ mod tests {
     assert_eq!(config.security.remember_me_ttl_seconds, 2592000);
     assert_eq!(config.rate_limit.login_max_attempts, 5);
     assert_eq!(config.rate_limit.login_window_seconds, 300);
+  }
+
+  #[test]
+  fn test_config_defaults_without_toml() {
+    // Config can be deserialized from an empty TOML (all sections have defaults)
+    let config: Config = toml::from_str("").expect("Failed to parse empty config");
+
+    // Server defaults
+    assert_eq!(config.server.host, "127.0.0.1");
+    assert_eq!(config.server.port, 8080);
+    assert_eq!(config.server.base_url, "http://127.0.0.1:8080");
+
+    // Database defaults
+    assert_eq!(
+      config.database.url,
+      "postgres://postgres:postgres@localhost:5432/taxbyte"
+    );
+    assert_eq!(config.database.max_connections, 30);
+    assert_eq!(config.database.connect_timeout_seconds, 5);
+    assert_eq!(config.database.acquire_timeout_seconds, 30);
+
+    // Redis defaults
+    assert_eq!(config.redis.url, "redis://localhost:6379");
+    assert_eq!(config.redis.connect_timeout_seconds, 5);
+
+    // Security defaults
+    assert_eq!(config.security.password_min_length, 12);
+    assert_eq!(config.security.session_ttl_seconds, 3600);
+    assert_eq!(config.security.remember_me_ttl_seconds, 2592000);
+    assert!(config.security.encryption_key_base64.is_empty());
+
+    // Rate limit defaults
+    assert_eq!(config.rate_limit.login_max_attempts, 5);
+    assert_eq!(config.rate_limit.login_window_seconds, 300);
+
+    // Google Drive defaults to None
+    assert!(config.google_drive.is_none());
+
+    // PDF defaults
+    assert_eq!(config.pdf.output_dir, "./data/invoices/pdfs");
+    assert!(config.pdf.wkhtmltopdf_path.is_none());
+  }
+
+  #[test]
+  fn test_config_partial_toml_with_defaults() {
+    // Only specify security section, rest should use defaults
+    let toml = r#"
+            [security]
+            encryption_key_base64 = "test-key-base64"
+        "#;
+
+    let config: Config = toml::from_str(toml).expect("Failed to parse partial config");
+
+    // Explicitly set value
+    assert_eq!(config.security.encryption_key_base64, "test-key-base64");
+
+    // Security fields with defaults still applied
+    assert_eq!(config.security.password_min_length, 12);
+    assert_eq!(config.security.session_ttl_seconds, 3600);
+
+    // Other sections use defaults
+    assert_eq!(config.server.port, 8080);
+    assert_eq!(config.database.max_connections, 30);
+    assert_eq!(config.redis.url, "redis://localhost:6379");
+  }
+
+  #[test]
+  fn test_config_toml_overrides_defaults() {
+    // Values from TOML should override struct defaults
+    let toml = r#"
+            [server]
+            host = "0.0.0.0"
+            port = 3000
+            base_url = "https://example.com"
+
+            [database]
+            url = "postgres://prod:secret@db.example.com/taxbyte"
+            max_connections = 50
+            connect_timeout_seconds = 10
+            acquire_timeout_seconds = 60
+
+            [redis]
+            url = "redis://cache.example.com:6380"
+            connect_timeout_seconds = 10
+
+            [security]
+            password_min_length = 16
+            session_ttl_seconds = 7200
+            remember_me_ttl_seconds = 5184000
+            encryption_key_base64 = "production-key"
+
+            [rate_limit]
+            login_max_attempts = 3
+            login_window_seconds = 600
+
+            [pdf]
+            output_dir = "/var/data/pdfs"
+            wkhtmltopdf_path = "/usr/local/bin/wkhtmltopdf"
+        "#;
+
+    let config: Config = toml::from_str(toml).expect("Failed to parse config");
+
+    assert_eq!(config.server.host, "0.0.0.0");
+    assert_eq!(config.server.port, 3000);
+    assert_eq!(config.server.base_url, "https://example.com");
+    assert_eq!(
+      config.database.url,
+      "postgres://prod:secret@db.example.com/taxbyte"
+    );
+    assert_eq!(config.database.max_connections, 50);
+    assert_eq!(config.database.connect_timeout_seconds, 10);
+    assert_eq!(config.database.acquire_timeout_seconds, 60);
+    assert_eq!(config.redis.url, "redis://cache.example.com:6380");
+    assert_eq!(config.redis.connect_timeout_seconds, 10);
+    assert_eq!(config.security.password_min_length, 16);
+    assert_eq!(config.security.session_ttl_seconds, 7200);
+    assert_eq!(config.security.remember_me_ttl_seconds, 5184000);
+    assert_eq!(config.rate_limit.login_max_attempts, 3);
+    assert_eq!(config.rate_limit.login_window_seconds, 600);
+    assert_eq!(config.pdf.output_dir, "/var/data/pdfs");
+    assert_eq!(
+      config.pdf.wkhtmltopdf_path,
+      Some("/usr/local/bin/wkhtmltopdf".to_string())
+    );
+  }
+
+  #[test]
+  fn test_config_with_google_drive() {
+    let toml = r#"
+            [security]
+            encryption_key_base64 = "key"
+
+            [google_drive]
+            enabled = true
+            service_account_key_path = "./sa.json"
+            default_invoice_subfolder = "Invoices"
+            oauth_client_id = "client-id"
+            oauth_client_secret = "client-secret"
+            oauth_redirect_url = "http://localhost:8080/oauth/callback"
+        "#;
+
+    let config: Config = toml::from_str(toml).expect("Failed to parse config");
+
+    let gd = config.google_drive.expect("google_drive should be Some");
+    assert!(gd.enabled);
+    assert_eq!(gd.service_account_key_path, "./sa.json");
+    assert_eq!(gd.default_invoice_subfolder, "Invoices");
+    assert_eq!(gd.oauth_client_id, Some("client-id".to_string()));
+    assert_eq!(gd.oauth_client_secret, Some("client-secret".to_string()));
+    assert_eq!(
+      gd.oauth_redirect_url,
+      Some("http://localhost:8080/oauth/callback".to_string())
+    );
   }
 }
