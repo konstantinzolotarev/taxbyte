@@ -48,6 +48,10 @@ pub trait InvoiceRepository: Send + Sync {
     company_id: Uuid,
     current_date: NaiveDate,
   ) -> Result<Vec<Invoice>, InvoiceError>;
+  async fn find_archived_by_company_id(
+    &self,
+    company_id: Uuid,
+  ) -> Result<Vec<Invoice>, InvoiceError>;
   async fn delete(&self, id: Uuid) -> Result<(), InvoiceError>;
 }
 
@@ -119,21 +123,10 @@ pub trait PdfGenerator: Send + Sync {
 pub trait CloudStorage: Send + Sync {
   /// Upload file to cloud storage
   /// Returns: Cloud file ID (Google Drive file ID)
-  /// subfolder_path: e.g., "Invoices" or "Documents/Invoices" (relative to company folder)
   async fn upload_invoice_pdf(
     &self,
-    company_name: &str,
+    folder_id: &str,
     invoice_number: &str,
     local_pdf_path: &str,
-    subfolder_path: &str,
-  ) -> Result<String, InvoiceError>;
-
-  /// Ensure nested folder structure exists for company
-  /// Creates: /Company Name/subfolder_path/
-  /// Returns: Final folder ID where invoices will be uploaded
-  async fn ensure_invoice_folder(
-    &self,
-    company_name: &str,
-    subfolder_path: &str,
   ) -> Result<String, InvoiceError>;
 }

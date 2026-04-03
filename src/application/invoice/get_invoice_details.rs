@@ -59,7 +59,6 @@ pub struct CompanyDetailsDto {
   pub country: Option<String>,
   pub registry_code: Option<String>,
   pub vat_number: Option<String>,
-  pub invoice_folder_path: Option<String>,
   pub storage_provider: Option<String>,
   pub storage_config: Option<String>,
 }
@@ -153,7 +152,6 @@ impl GetInvoiceDetailsUseCase {
       country: company.address.as_ref().and_then(|a| a.country.clone()),
       registry_code: company.registry_code.map(|r| r.as_str().to_string()),
       vat_number: company.vat_number.map(|v| v.as_str().to_string()),
-      invoice_folder_path: company.invoice_folder_path,
       storage_provider: company.storage_provider,
       storage_config: company.storage_config,
     };

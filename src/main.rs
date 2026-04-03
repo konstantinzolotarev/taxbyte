@@ -25,8 +25,9 @@ use taxbyte::{
     ArchiveCustomerUseCase, ArchiveInvoiceUseCase, ArchiveTemplateUseCase,
     ChangeInvoiceStatusUseCase, CreateCustomerUseCase, CreateInvoiceFromTemplateUseCase,
     CreateInvoiceUseCase, CreateTemplateFromInvoiceUseCase, DeleteInvoiceUseCase,
-    GetInvoiceDetailsUseCase, ListCustomersUseCase, ListInvoicesUseCase, ListTemplatesUseCase,
-    UpdateCustomerUseCase,
+    GetInvoiceDetailsUseCase, ListArchivedInvoicesUseCase, ListCustomersUseCase,
+    ListInvoicesUseCase, ListTemplatesUseCase, PermanentlyDeleteInvoiceUseCase,
+    ReuploadInvoiceUseCase, UnarchiveInvoiceUseCase, UpdateCustomerUseCase,
   },
   domain::auth::{
     ports::{LoginAttemptRepository, SessionRepository, UserRepository},
@@ -422,6 +423,12 @@ async fn main() -> std::io::Result<()> {
     Arc::new(GetInvoiceDetailsUseCase::new(invoice_service.clone()));
   let archive_invoice_use_case = Arc::new(ArchiveInvoiceUseCase::new(invoice_service.clone()));
   let delete_invoice_use_case = Arc::new(DeleteInvoiceUseCase::new(invoice_service.clone()));
+  let list_archived_invoices_use_case =
+    Arc::new(ListArchivedInvoicesUseCase::new(invoice_service.clone()));
+  let unarchive_invoice_use_case = Arc::new(UnarchiveInvoiceUseCase::new(invoice_service.clone()));
+  let permanently_delete_invoice_use_case = Arc::new(PermanentlyDeleteInvoiceUseCase::new(
+    invoice_service.clone(),
+  ));
 
   // Initialize template use cases
   let create_template_from_invoice_use_case = Arc::new(CreateTemplateFromInvoiceUseCase::new(
@@ -452,6 +459,16 @@ async fn main() -> std::io::Result<()> {
 
   // Initialize change invoice status use case (cloud storage configured per-company)
   let change_invoice_status_use_case = Arc::new(ChangeInvoiceStatusUseCase::new(
+    invoice_service.clone(),
+    pdf_generator.clone(),
+    get_invoice_details_use_case.clone(),
+    company_repo.clone(),
+    token_encryption.clone(),
+    connect_google_drive_use_case.clone(),
+    Arc::new(config.clone()),
+  ));
+
+  let reupload_invoice_use_case = Arc::new(ReuploadInvoiceUseCase::new(
     invoice_service.clone(),
     pdf_generator.clone(),
     get_invoice_details_use_case.clone(),
@@ -509,8 +526,13 @@ async fn main() -> std::io::Result<()> {
             list_invoices_use_case: list_invoices_use_case.clone(),
             get_invoice_details_use_case: get_invoice_details_use_case.clone(),
             change_invoice_status_use_case: change_invoice_status_use_case.clone(),
+            reupload_invoice_use_case: reupload_invoice_use_case.clone(),
             archive_invoice_use_case: archive_invoice_use_case.clone(),
             delete_invoice_use_case: delete_invoice_use_case.clone(),
+            // Archived invoice use cases
+            list_archived_invoices_use_case: list_archived_invoices_use_case.clone(),
+            unarchive_invoice_use_case: unarchive_invoice_use_case.clone(),
+            permanently_delete_invoice_use_case: permanently_delete_invoice_use_case.clone(),
             // Template use cases
             create_template_from_invoice_use_case: create_template_from_invoice_use_case.clone(),
             list_templates_use_case: list_templates_use_case.clone(),

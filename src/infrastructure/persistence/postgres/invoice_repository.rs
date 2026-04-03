@@ -252,6 +252,27 @@ impl InvoiceRepository for PostgresInvoiceRepository {
     rows.into_iter().map(|r| r.try_into()).collect()
   }
 
+  async fn find_archived_by_company_id(
+    &self,
+    company_id: Uuid,
+  ) -> Result<Vec<Invoice>, InvoiceError> {
+    let rows = sqlx::query_as::<_, InvoiceRow>(
+      r#"
+            SELECT id, company_id, customer_id, bank_account_id, invoice_number,
+                   invoice_date, due_date, payment_terms, currency, status,
+                   pdf_path, pdf_drive_file_id, created_at, updated_at, archived_at
+            FROM invoices
+            WHERE company_id = $1 AND archived_at IS NOT NULL
+            ORDER BY archived_at DESC
+            "#,
+    )
+    .bind(company_id)
+    .fetch_all(&self.pool)
+    .await?;
+
+    rows.into_iter().map(|r| r.try_into()).collect()
+  }
+
   async fn delete(&self, id: Uuid) -> Result<(), InvoiceError> {
     // First delete all line items
     sqlx::query(

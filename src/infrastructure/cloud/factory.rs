@@ -77,7 +77,6 @@ impl CloudStorageFactory {
         // Try OAuth first (preferred)
         if let Some(oauth_adapter) = Self::try_create_oauth_adapter(
           company,
-          config_json,
           token_encryption,
           connect_use_case,
           oauth_client_id,
@@ -133,7 +132,6 @@ impl CloudStorageFactory {
   /// Try to create OAuth adapter if company has OAuth tokens
   async fn try_create_oauth_adapter(
     company: &Company,
-    config_json: Option<&String>,
     token_encryption: &AesTokenEncryption,
     connect_use_case: Option<&ConnectGoogleDriveUseCase>,
     oauth_client_id: Option<&str>,
@@ -160,7 +158,6 @@ impl CloudStorageFactory {
               oauth_client_id?,
               oauth_client_secret?,
               &tokens.refresh_token,
-              config_json,
             )
             .await
             .ok();
@@ -191,14 +188,9 @@ impl CloudStorageFactory {
     };
 
     // Create OAuth adapter
-    Self::create_oauth_adapter_from_token(
-      oauth_client_id?,
-      oauth_client_secret?,
-      &refresh_token,
-      config_json,
-    )
-    .await
-    .ok()
+    Self::create_oauth_adapter_from_token(oauth_client_id?, oauth_client_secret?, &refresh_token)
+      .await
+      .ok()
   }
 
   /// Create OAuth adapter from refresh token
@@ -206,19 +198,8 @@ impl CloudStorageFactory {
     client_id: &str,
     client_secret: &str,
     refresh_token: &str,
-    config_json: Option<&String>,
   ) -> Result<GoogleDriveOAuthAdapter, InvoiceError> {
-    // Parse config to get parent folder ID
-    let parent_folder_id = if let Some(config_str) = config_json {
-      match serde_json::from_str::<StorageConfig>(config_str) {
-        Ok(StorageConfig::GoogleDrive(config)) => config.parent_folder_id,
-        _ => None,
-      }
-    } else {
-      None
-    };
-
-    GoogleDriveOAuthAdapter::new(client_id, client_secret, refresh_token, parent_folder_id).await
+    GoogleDriveOAuthAdapter::new(client_id, client_secret, refresh_token).await
   }
 
   /// Create service account adapter (deprecated)
@@ -244,6 +225,6 @@ impl CloudStorageFactory {
       })?
     };
 
-    GoogleDriveAdapter::new_from_json(&key_content, config.parent_folder_id).await
+    GoogleDriveAdapter::new_from_json(&key_content).await
   }
 }

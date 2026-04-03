@@ -219,8 +219,6 @@ impl Default for RateLimitConfig {
 #[derive(Debug, Clone, Deserialize)]
 pub struct GoogleDriveConfig {
   pub service_account_key_path: String,
-  pub parent_folder_id: Option<String>,
-  pub default_invoice_subfolder: String,
   pub enabled: bool,
   /// OAuth 2.0 client ID from Google Cloud Console
   pub oauth_client_id: Option<String>,
@@ -501,7 +499,6 @@ mod tests {
             [google_drive]
             enabled = true
             service_account_key_path = "./sa.json"
-            default_invoice_subfolder = "Invoices"
             oauth_client_id = "client-id"
             oauth_client_secret = "client-secret"
             oauth_redirect_url = "http://localhost:8080/oauth/callback"
@@ -512,7 +509,6 @@ mod tests {
     let gd = config.google_drive.expect("google_drive should be Some");
     assert!(gd.enabled);
     assert_eq!(gd.service_account_key_path, "./sa.json");
-    assert_eq!(gd.default_invoice_subfolder, "Invoices");
     assert_eq!(gd.oauth_client_id, Some("client-id".to_string()));
     assert_eq!(gd.oauth_client_secret, Some("client-secret".to_string()));
     assert_eq!(

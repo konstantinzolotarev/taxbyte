@@ -8,9 +8,13 @@ pub mod create_invoice_from_template;
 pub mod create_template_from_invoice;
 pub mod delete_invoice;
 pub mod get_invoice_details;
+pub mod list_archived_invoices;
 pub mod list_customers;
 pub mod list_invoices;
 pub mod list_templates;
+pub mod permanently_delete_invoice;
+pub mod reupload_invoice;
+pub mod unarchive_invoice;
 pub mod update_customer;
 
 pub use archive_customer::{ArchiveCustomerCommand, ArchiveCustomerUseCase};
@@ -35,6 +39,9 @@ pub use get_invoice_details::{
   CustomerDetailsDto, GetInvoiceDetailsCommand, GetInvoiceDetailsUseCase, InvoiceDetailsResponse,
   InvoiceLineItemDto, InvoiceTotalsDto,
 };
+pub use list_archived_invoices::{
+  ListArchivedInvoicesCommand, ListArchivedInvoicesResponse, ListArchivedInvoicesUseCase,
+};
 pub use list_customers::{
   CustomerDto, ListCustomersCommand, ListCustomersResponse, ListCustomersUseCase,
 };
@@ -44,4 +51,9 @@ pub use list_invoices::{
 pub use list_templates::{
   ListTemplatesCommand, ListTemplatesResponse, ListTemplatesUseCase, TemplateListItem,
 };
+pub use permanently_delete_invoice::{
+  PermanentlyDeleteInvoiceCommand, PermanentlyDeleteInvoiceUseCase,
+};
+pub use reupload_invoice::{ReuploadInvoiceCommand, ReuploadInvoiceUseCase};
+pub use unarchive_invoice::{UnarchiveInvoiceCommand, UnarchiveInvoiceUseCase};
 pub use update_customer::{UpdateCustomerCommand, UpdateCustomerResponse, UpdateCustomerUseCase};

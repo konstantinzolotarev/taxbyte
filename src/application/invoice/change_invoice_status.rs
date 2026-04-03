@@ -77,13 +77,6 @@ impl ChangeInvoiceStatusUseCase {
         })
         .await?;
 
-      // Get company's invoice folder path (from DB or use default)
-      let invoice_folder_path = invoice_details
-        .company
-        .invoice_folder_path
-        .clone()
-        .unwrap_or_else(|| "Invoices".to_string());
-
       // Generate PDF
       let pdf_path = self
         .pdf_generator
@@ -123,14 +116,10 @@ impl ChangeInvoiceStatusUseCase {
       )
       .await;
 
-      // Upload to cloud storage
+      // Upload to cloud storage (use google_drive_folder_id or empty string for NoOp)
+      let folder_id = company.google_drive_folder_id.as_deref().unwrap_or("");
       let file_id = cloud_storage
-        .upload_invoice_pdf(
-          &invoice_details.company.name,
-          &invoice_details.invoice_number,
-          &pdf_path,
-          &invoice_folder_path,
-        )
+        .upload_invoice_pdf(folder_id, &invoice_details.invoice_number, &pdf_path)
         .await?;
 
       (Some(pdf_path), Some(file_id))

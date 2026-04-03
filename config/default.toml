@@ -59,8 +59,6 @@ login_window_seconds = 300
 enabled = true
 # Legacy service account support (deprecated, use OAuth instead)
 service_account_key_path = "./config/google-service-account.json"
-default_invoice_subfolder = "Invoices"
-parent_folder_id = ""
 # OAuth 2.0 credentials (recommended)
 # Get from Google Cloud Console: https://console.cloud.google.com/
 # IMPORTANT: Set these via environment variables to keep credentials secure.

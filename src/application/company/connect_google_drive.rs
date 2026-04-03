@@ -110,6 +110,16 @@ impl ConnectGoogleDriveUseCase {
       )
       .await?;
 
+    // Also set storage provider to google_drive
+    let mut company = self
+      .company_repo
+      .find_by_id(cmd.company_id)
+      .await?
+      .ok_or(CompanyError::NotFound)?;
+    company.storage_provider = Some("google_drive".to_string());
+    company.updated_at = Utc::now();
+    self.company_repo.update(company).await?;
+
     Ok(())
   }
 

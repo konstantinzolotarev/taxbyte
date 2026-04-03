@@ -99,12 +99,9 @@ pub async fn update_storage_config(
     "google_drive" => {
       // For OAuth-based Google Drive, we don't need service account key
       // OAuth tokens are stored separately in the database
-      // Just store the basic configuration
       Some(
         serde_json::json!({
-          "provider": "google_drive",
-          "parent_folder_id": form.google_drive_folder_id,
-          "folder_path": "Invoices"
+          "provider": "google_drive"
         })
         .to_string(),
       )
@@ -149,6 +146,7 @@ pub async fn update_storage_config(
       company_id,
       storage_provider: form.storage_provider.clone(),
       storage_config_json,
+      google_drive_folder_id: form.google_drive_folder_id.clone(),
     })
     .await?;
 

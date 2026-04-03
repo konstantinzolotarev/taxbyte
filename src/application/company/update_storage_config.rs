@@ -10,6 +10,7 @@ pub struct UpdateStorageConfigCommand {
   pub company_id: Uuid,
   pub storage_provider: String,
   pub storage_config_json: Option<String>,
+  pub google_drive_folder_id: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -58,6 +59,7 @@ impl UpdateStorageConfigUseCase {
         command.user_id,
         Some(provider.as_str().to_string()),
         command.storage_config_json,
+        command.google_drive_folder_id,
       )
       .await?;
 

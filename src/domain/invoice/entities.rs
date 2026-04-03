@@ -146,6 +146,11 @@ impl Invoice {
     self.archived_at = Some(Utc::now());
   }
 
+  pub fn unarchive(&mut self) {
+    self.archived_at = None;
+    self.updated_at = Utc::now();
+  }
+
   pub fn is_archived(&self) -> bool {
     self.archived_at.is_some()
   }

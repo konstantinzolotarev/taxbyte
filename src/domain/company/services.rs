@@ -200,6 +200,7 @@ impl CompanyService {
     requester_id: Uuid,
     storage_provider: Option<String>,
     storage_config: Option<String>,
+    google_drive_folder_id: Option<String>,
   ) -> Result<Company, CompanyError> {
     // Verify requester is member
     let member = self.verify_membership(company_id, requester_id).await?;
@@ -219,6 +220,7 @@ impl CompanyService {
     // Update storage configuration
     company.storage_provider = storage_provider;
     company.storage_config = storage_config;
+    company.google_drive_folder_id = google_drive_folder_id;
     company.updated_at = chrono::Utc::now();
 
     // Save

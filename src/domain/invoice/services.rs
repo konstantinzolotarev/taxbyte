@@ -512,6 +512,69 @@ impl InvoiceService {
     }
   }
 
+  pub async fn list_archived_invoices(
+    &self,
+    user_id: Uuid,
+    company_id: Uuid,
+  ) -> Result<Vec<Invoice>, InvoiceError> {
+    self.verify_company_membership(user_id, company_id).await?;
+    self
+      .invoice_repo
+      .find_archived_by_company_id(company_id)
+      .await
+  }
+
+  pub async fn unarchive_invoice(
+    &self,
+    user_id: Uuid,
+    invoice_id: Uuid,
+  ) -> Result<(), InvoiceError> {
+    let mut invoice = self
+      .invoice_repo
+      .find_by_id(invoice_id)
+      .await?
+      .ok_or(InvoiceError::InvoiceNotFound(invoice_id))?;
+
+    self
+      .verify_company_membership(user_id, invoice.company_id)
+      .await?;
+
+    if !invoice.is_archived() {
+      return Err(InvoiceError::CannotEditInvoice(
+        "Invoice is not archived".to_string(),
+      ));
+    }
+
+    invoice.unarchive();
+    self.invoice_repo.update(invoice).await?;
+    Ok(())
+  }
+
+  pub async fn permanently_delete_invoice(
+    &self,
+    user_id: Uuid,
+    invoice_id: Uuid,
+  ) -> Result<(), InvoiceError> {
+    let invoice = self
+      .invoice_repo
+      .find_by_id(invoice_id)
+      .await?
+      .ok_or(InvoiceError::InvoiceNotFound(invoice_id))?;
+
+    self
+      .verify_company_membership(user_id, invoice.company_id)
+      .await?;
+
+    if !invoice.is_archived() {
+      return Err(InvoiceError::CannotDeleteInvoice(
+        "Only archived invoices can be permanently deleted".to_string(),
+      ));
+    }
+
+    self.invoice_repo.delete(invoice_id).await?;
+    Ok(())
+  }
+
   pub async fn set_invoice_pdf_path(
     &self,
     invoice_id: Uuid,

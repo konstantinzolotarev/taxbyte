@@ -17,8 +17,10 @@ use crate::application::invoice::{
   CreateInvoiceFromTemplateCommand, CreateInvoiceFromTemplateUseCase, CreateInvoiceLineItemDto,
   CreateInvoiceUseCase, CreateTemplateFromInvoiceCommand, CreateTemplateFromInvoiceUseCase,
   DeleteInvoiceCommand, DeleteInvoiceUseCase, GetInvoiceDetailsCommand, GetInvoiceDetailsUseCase,
-  ListCustomersCommand, ListCustomersUseCase, ListInvoicesCommand, ListInvoicesUseCase,
-  ListTemplatesCommand, ListTemplatesUseCase,
+  ListArchivedInvoicesCommand, ListArchivedInvoicesUseCase, ListCustomersCommand,
+  ListCustomersUseCase, ListInvoicesCommand, ListInvoicesUseCase, ListTemplatesCommand,
+  ListTemplatesUseCase, PermanentlyDeleteInvoiceCommand, PermanentlyDeleteInvoiceUseCase,
+  ReuploadInvoiceCommand, ReuploadInvoiceUseCase, UnarchiveInvoiceCommand, UnarchiveInvoiceUseCase,
 };
 use crate::domain::company::ports::ActiveBankAccountRepository;
 
@@ -279,6 +281,34 @@ pub async fn change_invoice_status(
       user_id: user.id,
       invoice_id,
       new_status: form.status.clone(),
+    })
+    .await?;
+
+  Ok(
+    HttpResponse::Ok()
+      .insert_header((
+        "HX-Redirect",
+        format!("/c/{}/invoices/{}", company_id, invoice_id),
+      ))
+      .finish(),
+  )
+}
+
+// POST /invoices/{id}/reupload - Re-generate PDF and upload to Google Drive
+pub async fn reupload_invoice(
+  req: HttpRequest,
+  path: web::Path<(Uuid, Uuid)>,
+  reupload_use_case: web::Data<Arc<ReuploadInvoiceUseCase>>,
+) -> Result<HttpResponse, ApiError> {
+  let user = get_user(&req)?;
+  let (_company_id_from_path, invoice_id) = path.into_inner();
+  let company_context = get_company_context(&req)?;
+  let company_id = company_context.company_id;
+
+  reupload_use_case
+    .execute(ReuploadInvoiceCommand {
+      user_id: user.id,
+      invoice_id,
     })
     .await?;
 
@@ -571,6 +601,111 @@ pub async fn archive_template(
       .insert_header((
         "HX-Redirect",
         format!("/c/{}/invoices/templates", company_id),
+      ))
+      .finish(),
+  )
+}
+
+// GET /invoices/archived - List archived invoices
+pub async fn archived_invoices_page(
+  req: HttpRequest,
+  templates: web::Data<TemplateEngine>,
+  list_archived_invoices_use_case: web::Data<Arc<ListArchivedInvoicesUseCase>>,
+  get_companies_use_case: web::Data<Arc<crate::application::company::GetUserCompaniesUseCase>>,
+) -> Result<HttpResponse, ApiError> {
+  let user = get_user(&req)?;
+  let company_context = get_company_context(&req)?;
+  let company_id = company_context.company_id;
+
+  let companies_response = get_companies_use_case
+    .execute(crate::application::company::GetUserCompaniesCommand { user_id: user.id })
+    .await?;
+
+  let active_company = companies_response
+    .companies
+    .iter()
+    .find(|c| c.company_id == company_id)
+    .map(|c| {
+      serde_json::json!({
+        "company_id": c.company_id,
+        "name": c.name,
+        "role": c.role,
+      })
+    });
+
+  let response = list_archived_invoices_use_case
+    .execute(ListArchivedInvoicesCommand {
+      user_id: user.id,
+      company_id,
+    })
+    .await?;
+
+  let mut context = tera::Context::new();
+  context.insert("invoices", &response.invoices);
+  context.insert("user", &user);
+  context.insert("companies", &companies_response.companies);
+  context.insert("active_company", &active_company);
+  context.insert("company_id", &company_id.to_string());
+  context.insert("current_page", "invoices");
+
+  let html = templates
+    .render("pages/invoices_archived.html.tera", &context)
+    .map_err(|e| ApiError::Internal(format!("Template error: {}", e)))?;
+
+  Ok(HttpResponse::Ok().content_type("text/html").body(html))
+}
+
+// POST /invoices/{id}/unarchive - Restore an archived invoice
+pub async fn unarchive_invoice(
+  req: HttpRequest,
+  path: web::Path<(Uuid, Uuid)>,
+  unarchive_invoice_use_case: web::Data<Arc<UnarchiveInvoiceUseCase>>,
+) -> Result<HttpResponse, ApiError> {
+  let user = get_user(&req)?;
+  let (_company_id_from_path, invoice_id) = path.into_inner();
+  let company_context = get_company_context(&req)?;
+  let company_id = company_context.company_id;
+
+  unarchive_invoice_use_case
+    .execute(UnarchiveInvoiceCommand {
+      user_id: user.id,
+      invoice_id,
+    })
+    .await?;
+
+  Ok(
+    HttpResponse::Ok()
+      .insert_header((
+        "HX-Redirect",
+        format!("/c/{}/invoices/archived", company_id),
+      ))
+      .finish(),
+  )
+}
+
+// DELETE /invoices/{id}/permanent - Permanently delete an archived invoice
+pub async fn permanently_delete_invoice(
+  req: HttpRequest,
+  path: web::Path<(Uuid, Uuid)>,
+  permanently_delete_use_case: web::Data<Arc<PermanentlyDeleteInvoiceUseCase>>,
+) -> Result<HttpResponse, ApiError> {
+  let user = get_user(&req)?;
+  let (_company_id_from_path, invoice_id) = path.into_inner();
+  let company_context = get_company_context(&req)?;
+  let company_id = company_context.company_id;
+
+  permanently_delete_use_case
+    .execute(PermanentlyDeleteInvoiceCommand {
+      user_id: user.id,
+      invoice_id,
+    })
+    .await?;
+
+  Ok(
+    HttpResponse::Ok()
+      .insert_header((
+        "HX-Redirect",
+        format!("/c/{}/invoices/archived", company_id),
       ))
       .finish(),
   )

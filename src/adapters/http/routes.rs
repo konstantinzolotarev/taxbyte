@@ -16,7 +16,7 @@ use crate::application::company::{
 use crate::application::invoice::{
   ArchiveCustomerUseCase, ArchiveInvoiceUseCase, ChangeInvoiceStatusUseCase, CreateCustomerUseCase,
   CreateInvoiceUseCase, GetInvoiceDetailsUseCase, ListCustomersUseCase, ListInvoicesUseCase,
-  UpdateCustomerUseCase,
+  ReuploadInvoiceUseCase, UpdateCustomerUseCase,
 };
 use crate::domain::auth::ports::UserRepository;
 use crate::domain::auth::services::AuthService;
@@ -72,6 +72,7 @@ pub struct WebRouteDependencies {
   pub list_invoices_use_case: Arc<ListInvoicesUseCase>,
   pub get_invoice_details_use_case: Arc<GetInvoiceDetailsUseCase>,
   pub change_invoice_status_use_case: Arc<ChangeInvoiceStatusUseCase>,
+  pub reupload_invoice_use_case: Arc<ReuploadInvoiceUseCase>,
   pub archive_invoice_use_case: Arc<ArchiveInvoiceUseCase>,
   pub delete_invoice_use_case: Arc<crate::application::invoice::DeleteInvoiceUseCase>,
   // Template use cases
@@ -81,6 +82,12 @@ pub struct WebRouteDependencies {
   pub create_invoice_from_template_use_case:
     Arc<crate::application::invoice::CreateInvoiceFromTemplateUseCase>,
   pub archive_template_use_case: Arc<crate::application::invoice::ArchiveTemplateUseCase>,
+  // Archived invoice use cases
+  pub list_archived_invoices_use_case:
+    Arc<crate::application::invoice::ListArchivedInvoicesUseCase>,
+  pub unarchive_invoice_use_case: Arc<crate::application::invoice::UnarchiveInvoiceUseCase>,
+  pub permanently_delete_invoice_use_case:
+    Arc<crate::application::invoice::PermanentlyDeleteInvoiceUseCase>,
   // OAuth use cases
   pub connect_google_drive_use_case: Arc<ConnectGoogleDriveUseCase>,
   pub disconnect_google_drive_use_case: Arc<DisconnectGoogleDriveUseCase>,
@@ -489,6 +496,7 @@ pub fn configure_company_scoped_routes(cfg: &mut web::ServiceConfig, deps: &WebR
       .app_data(web::Data::new(deps.list_invoices_use_case.clone()))
       .app_data(web::Data::new(deps.get_invoice_details_use_case.clone()))
       .app_data(web::Data::new(deps.change_invoice_status_use_case.clone()))
+      .app_data(web::Data::new(deps.reupload_invoice_use_case.clone()))
       .app_data(web::Data::new(deps.archive_invoice_use_case.clone()))
       .app_data(web::Data::new(deps.delete_invoice_use_case.clone()))
       .app_data(web::Data::new(deps.get_bank_accounts_use_case.clone()))
@@ -501,6 +509,16 @@ pub fn configure_company_scoped_routes(cfg: &mut web::ServiceConfig, deps: &WebR
       .route(
         "/invoices/create",
         web::get().to(invoices_web::invoice_create_page),
+      )
+      // Archived invoices
+      .app_data(web::Data::new(deps.list_archived_invoices_use_case.clone()))
+      .app_data(web::Data::new(deps.unarchive_invoice_use_case.clone()))
+      .app_data(web::Data::new(
+        deps.permanently_delete_invoice_use_case.clone(),
+      ))
+      .route(
+        "/invoices/archived",
+        web::get().to(invoices_web::archived_invoices_page),
       )
       // Invoice Templates - specific literal paths MUST come before {id} patterns
       .app_data(web::Data::new(
@@ -538,8 +556,20 @@ pub fn configure_company_scoped_routes(cfg: &mut web::ServiceConfig, deps: &WebR
         web::post().to(invoices_web::change_invoice_status),
       )
       .route(
+        "/invoices/{id}/reupload",
+        web::post().to(invoices_web::reupload_invoice),
+      )
+      .route(
         "/invoices/{id}/archive",
         web::delete().to(invoices_web::archive_invoice),
+      )
+      .route(
+        "/invoices/{id}/unarchive",
+        web::post().to(invoices_web::unarchive_invoice),
+      )
+      .route(
+        "/invoices/{id}/permanent",
+        web::delete().to(invoices_web::permanently_delete_invoice),
       )
       .route(
         "/invoices/{id}",
