@@ -512,6 +512,36 @@ impl InvoiceService {
     }
   }
 
+  /// List invoices with customer names and totals for matching dropdowns
+  pub async fn list_invoices_with_summaries(
+    &self,
+    user_id: Uuid,
+    company_id: Uuid,
+  ) -> Result<Vec<(Invoice, String, rust_decimal::Decimal)>, InvoiceError> {
+    let invoices = self.list_invoices(user_id, company_id, None, None).await?;
+
+    // Build customer name lookup
+    let customers = self.customer_repo.find_by_company_id(company_id).await?;
+    let customer_map: std::collections::HashMap<Uuid, String> = customers
+      .into_iter()
+      .map(|c| (c.id, String::from(c.name)))
+      .collect();
+
+    let mut results = Vec::with_capacity(invoices.len());
+    for invoice in invoices {
+      let customer_name = customer_map
+        .get(&invoice.customer_id)
+        .cloned()
+        .unwrap_or_else(|| "Unknown".to_string());
+      let line_items = self.line_item_repo.find_by_invoice_id(invoice.id).await?;
+      let totals = InvoiceTotals::calculate(&line_items, invoice.currency);
+      let grand_total = totals.grand_total.amount;
+      results.push((invoice, customer_name, grand_total));
+    }
+
+    Ok(results)
+  }
+
   pub async fn list_archived_invoices(
     &self,
     user_id: Uuid,

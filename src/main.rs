@@ -47,6 +47,10 @@ use taxbyte::{
       InvoiceTemplateLineItemRepository, InvoiceTemplateRepository,
     },
   },
+  domain::report::ports::{
+    BankTransactionRepository as BankTxRepo, MonthlyReportRepository,
+    ReceivedInvoiceRepository as RecvInvRepo,
+  },
   infrastructure::{
     cloud::{GoogleOAuthManager, MockOAuthManager, OAuthManager},
     config::{Config, DatabaseBackend},
@@ -91,6 +95,9 @@ async fn main() -> std::io::Result<()> {
   let invoice_line_item_repo: Arc<dyn InvoiceLineItemRepository>;
   let invoice_template_repo: Arc<dyn InvoiceTemplateRepository>;
   let invoice_template_line_item_repo: Arc<dyn InvoiceTemplateLineItemRepository>;
+  let monthly_report_repo: Arc<dyn MonthlyReportRepository>;
+  let bank_transaction_repo: Arc<dyn BankTxRepo>;
+  let received_invoice_repo: Arc<dyn RecvInvRepo>;
 
   match config.database.backend {
     DatabaseBackend::Postgres => {
@@ -206,6 +213,9 @@ async fn main() -> std::io::Result<()> {
       invoice_template_line_item_repo = Arc::new(PostgresInvoiceTemplateLineItemRepository::new(
         db_pool.clone(),
       ));
+      monthly_report_repo = Arc::new(PostgresMonthlyReportRepository::new(db_pool.clone()));
+      bank_transaction_repo = Arc::new(PostgresBankTransactionRepository::new(db_pool.clone()));
+      received_invoice_repo = Arc::new(PostgresReceivedInvoiceRepository::new(db_pool.clone()));
     }
 
     DatabaseBackend::Sqlite => {
@@ -272,6 +282,9 @@ async fn main() -> std::io::Result<()> {
       invoice_template_line_item_repo = Arc::new(SqliteInvoiceTemplateLineItemRepository::new(
         db_pool.clone(),
       ));
+      monthly_report_repo = Arc::new(SqliteMonthlyReportRepository::new(db_pool.clone()));
+      bank_transaction_repo = Arc::new(SqliteBankTransactionRepository::new(db_pool.clone()));
+      received_invoice_repo = Arc::new(SqliteReceivedInvoiceRepository::new(db_pool.clone()));
     }
   }
 
@@ -444,6 +457,57 @@ async fn main() -> std::io::Result<()> {
   ));
   let archive_template_use_case = Arc::new(ArchiveTemplateUseCase::new(invoice_service.clone()));
 
+  // Initialize report service and use cases
+  let report_service = Arc::new(taxbyte::domain::report::ReportService::new(
+    monthly_report_repo.clone(),
+    bank_transaction_repo.clone(),
+    received_invoice_repo.clone(),
+  ));
+
+  let csv_parser: Arc<dyn taxbyte::domain::report::BankStatementParser> =
+    Arc::new(taxbyte::infrastructure::csv::SwedbankCsvParser::new());
+
+  let import_bank_statement_use_case = Arc::new(
+    taxbyte::application::report::ImportBankStatementUseCase::new(
+      report_service.clone(),
+      csv_parser,
+    ),
+  );
+  let list_monthly_reports_use_case =
+    Arc::new(taxbyte::application::report::ListMonthlyReportsUseCase::new(report_service.clone()));
+  let get_report_details_use_case = Arc::new(
+    taxbyte::application::report::GetReportDetailsUseCase::new(report_service.clone()),
+  );
+  let upload_received_invoice_use_case = Arc::new(
+    taxbyte::application::report::UploadReceivedInvoiceUseCase::new(report_service.clone()),
+  );
+  let list_received_invoices_use_case = Arc::new(
+    taxbyte::application::report::ListReceivedInvoicesUseCase::new(report_service.clone()),
+  );
+  let match_transaction_use_case = Arc::new(
+    taxbyte::application::report::MatchTransactionUseCase::new(report_service.clone()),
+  );
+  let unmatch_transaction_use_case =
+    Arc::new(taxbyte::application::report::UnmatchTransactionUseCase::new(report_service.clone()));
+  let delete_report_use_case = Arc::new(taxbyte::application::report::DeleteReportUseCase::new(
+    report_service.clone(),
+  ));
+  let delete_received_invoice_use_case = Arc::new(
+    taxbyte::application::report::DeleteReceivedInvoiceUseCase::new(report_service.clone()),
+  );
+
+  // Generate report use case needs cloud storage — use a no-op placeholder
+  // (actual Drive adapter is created per-company when generating)
+  let report_cloud_storage: Arc<dyn taxbyte::domain::report::ReportCloudStorage> =
+    Arc::new(taxbyte::infrastructure::cloud::report_drive_adapter::NoOpReportCloudStorage);
+  let generate_report_use_case =
+    Arc::new(taxbyte::application::report::GenerateReportUseCase::new(
+      report_service.clone(),
+      company_repo.clone(),
+      invoice_repo.clone(),
+      report_cloud_storage,
+    ));
+
   // Initialize template engine
   let templates = TemplateEngine::new().expect("Failed to initialize template engine");
   tracing::info!("Template engine initialized");
@@ -542,6 +606,17 @@ async fn main() -> std::io::Result<()> {
             connect_google_drive_use_case: connect_google_drive_use_case.clone(),
             disconnect_google_drive_use_case: disconnect_google_drive_use_case.clone(),
             test_drive_connection_use_case: test_drive_connection_use_case.clone(),
+            // Report use cases
+            import_bank_statement_use_case: import_bank_statement_use_case.clone(),
+            list_monthly_reports_use_case: list_monthly_reports_use_case.clone(),
+            get_report_details_use_case: get_report_details_use_case.clone(),
+            upload_received_invoice_use_case: upload_received_invoice_use_case.clone(),
+            list_received_invoices_use_case: list_received_invoices_use_case.clone(),
+            match_transaction_use_case: match_transaction_use_case.clone(),
+            unmatch_transaction_use_case: unmatch_transaction_use_case.clone(),
+            generate_report_use_case: generate_report_use_case.clone(),
+            delete_report_use_case: delete_report_use_case.clone(),
+            delete_received_invoice_use_case: delete_received_invoice_use_case.clone(),
           },
         )
       })

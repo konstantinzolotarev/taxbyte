@@ -1,4 +1,5 @@
 use chrono::{DateTime, NaiveDate, Utc};
+use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 use std::sync::Arc;
@@ -19,6 +20,8 @@ pub struct InvoiceListItemDto {
   pub id: Uuid,
   pub invoice_number: String,
   pub customer_id: Uuid,
+  pub customer_name: String,
+  pub total: Decimal,
   pub invoice_date: NaiveDate,
   pub due_date: NaiveDate,
   pub currency: String,
@@ -44,28 +47,57 @@ impl ListInvoicesUseCase {
     &self,
     command: ListInvoicesCommand,
   ) -> Result<ListInvoicesResponse, InvoiceError> {
-    let status_filter = if let Some(status_str) = command.status_filter {
-      Some(InvoiceStatus::from_str(&status_str)?)
-    } else {
-      None
-    };
+    if command.status_filter.is_some() || command.customer_filter.is_some() {
+      let status_filter = if let Some(status_str) = command.status_filter {
+        Some(InvoiceStatus::from_str(&status_str)?)
+      } else {
+        None
+      };
 
-    let invoices = self
+      let invoices = self
+        .invoice_service
+        .list_invoices(
+          command.user_id,
+          command.company_id,
+          status_filter,
+          command.customer_filter,
+        )
+        .await?;
+
+      let invoice_dtos = invoices
+        .into_iter()
+        .map(|i| InvoiceListItemDto {
+          id: i.id,
+          invoice_number: i.invoice_number.to_string(),
+          customer_id: i.customer_id,
+          customer_name: String::new(),
+          total: Decimal::ZERO,
+          invoice_date: i.invoice_date,
+          due_date: i.due_date,
+          currency: i.currency.as_str().to_string(),
+          status: i.status.as_str().to_string(),
+          created_at: i.created_at,
+        })
+        .collect();
+
+      return Ok(ListInvoicesResponse {
+        invoices: invoice_dtos,
+      });
+    }
+
+    let summaries = self
       .invoice_service
-      .list_invoices(
-        command.user_id,
-        command.company_id,
-        status_filter,
-        command.customer_filter,
-      )
+      .list_invoices_with_summaries(command.user_id, command.company_id)
       .await?;
 
-    let invoice_dtos = invoices
+    let invoice_dtos = summaries
       .into_iter()
-      .map(|i| InvoiceListItemDto {
+      .map(|(i, customer_name, total)| InvoiceListItemDto {
         id: i.id,
         invoice_number: i.invoice_number.to_string(),
         customer_id: i.customer_id,
+        customer_name,
+        total,
         invoice_date: i.invoice_date,
         due_date: i.due_date,
         currency: i.currency.as_str().to_string(),

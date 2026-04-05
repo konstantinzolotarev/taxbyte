@@ -1,0 +1,95 @@
+{% extends "layouts/base.html.tera" %}
+
+{% block title %}Reports - TaxByte{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+  <!-- Header -->
+  <div class="mb-8 flex justify-between items-start">
+    <div>
+      <h1 class="text-3xl font-bold text-gray-900 dark:text-white">Monthly Reports</h1>
+      <p class="mt-2 text-gray-600 dark:text-gray-400">Import bank statements and match transactions to invoices</p>
+    </div>
+    <div class="flex gap-3">
+      <a href="/c/{{ company_id }}/reports/received-invoices"
+        class="inline-flex items-center gap-2 px-4 py-2 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 font-medium rounded-lg transition-colors">
+        Received Invoices
+      </a>
+      <a href="/c/{{ company_id }}/reports/create"
+        class="inline-flex items-center gap-2 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white font-medium rounded-lg transition-colors">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+        </svg>
+        Import Statement
+      </a>
+    </div>
+  </div>
+
+  {% if reports and reports | length > 0 %}
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+      <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+        <thead class="bg-gray-50 dark:bg-gray-700">
+          <tr>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Period</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">IBAN</th>
+            <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Incoming</th>
+            <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Outgoing</th>
+            <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Matched</th>
+            <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Status</th>
+            <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Actions</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+          {% for report in reports %}
+            <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+              <td class="px-6 py-4 whitespace-nowrap">
+                <a href="/c/{{ company_id }}/reports/{{ report.id }}" class="text-primary-600 dark:text-primary-400 hover:underline font-medium">
+                  {{ report.month | zero_pad }}.{{ report.year }}
+                </a>
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                {{ report.bank_account_iban }}
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap text-sm text-right text-green-600 dark:text-green-400">
+                +{{ report.total_incoming }}
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap text-sm text-right text-red-600 dark:text-red-400">
+                -{{ report.total_outgoing }}
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap text-sm text-center text-gray-700 dark:text-gray-300">
+                {{ report.matched_count }} / {{ report.transaction_count }}
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap text-center">
+                {% if report.status == "generated" %}
+                  <span class="inline-flex px-2 py-1 text-xs font-medium rounded bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300">Generated</span>
+                {% else %}
+                  <span class="inline-flex px-2 py-1 text-xs font-medium rounded bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300">Draft</span>
+                {% endif %}
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap text-right">
+                <a href="/c/{{ company_id }}/reports/{{ report.id }}" class="text-primary-600 dark:text-primary-400 hover:underline text-sm">
+                  View
+                </a>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-12 text-center">
+      <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-700 mb-4">
+        <svg class="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+        </svg>
+      </div>
+      <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">No reports yet</h3>
+      <p class="text-gray-600 dark:text-gray-400 mb-6">Import a bank statement CSV to create your first report.</p>
+      <a href="/c/{{ company_id }}/reports/create"
+        class="inline-flex items-center gap-2 px-6 py-3 bg-primary-600 hover:bg-primary-700 text-white font-medium rounded-lg transition-colors">
+        Import Statement
+      </a>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

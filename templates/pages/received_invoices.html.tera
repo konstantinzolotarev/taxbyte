@@ -1,0 +1,109 @@
+{% extends "layouts/base.html.tera" %}
+
+{% block title %}Received Invoices - TaxByte{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+  <!-- Header -->
+  <div class="mb-8">
+    <a href="/c/{{ company_id }}/reports" class="text-primary-600 dark:text-primary-400 hover:underline text-sm">&larr; Back to Reports</a>
+    <div class="mt-4 flex justify-between items-start">
+      <div>
+        <h1 class="text-3xl font-bold text-gray-900 dark:text-white">Received Invoices</h1>
+        <p class="mt-2 text-gray-600 dark:text-gray-400">Upload vendor bills/invoices that you received and paid</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Upload Form -->
+  <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 mb-8">
+    <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Upload Invoice</h2>
+    <form hx-post="/c/{{ company_id }}/reports/received-invoices" hx-encoding="multipart/form-data" hx-target="body">
+      <div class="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Vendor Name *</label>
+          <input type="text" name="vendor_name" required
+            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Amount *</label>
+          <input type="text" name="amount" required placeholder="0.00"
+            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Currency</label>
+          <select name="currency"
+            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500">
+            <option value="EUR" selected>EUR</option>
+            <option value="USD">USD</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Invoice Date</label>
+          <input type="date" name="invoice_date"
+            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Invoice Number</label>
+          <input type="text" name="invoice_number"
+            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">PDF File *</label>
+          <input type="file" name="pdf_file" accept=".pdf" required
+            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white file:mr-4 file:py-1 file:px-3 file:rounded file:border-0 file:text-sm file:bg-primary-50 file:text-primary-700 dark:file:bg-primary-900/30 dark:file:text-primary-300">
+        </div>
+      </div>
+      <div class="mb-4">
+        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Notes</label>
+        <input type="text" name="notes"
+          class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500">
+      </div>
+      <button type="submit"
+        class="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white font-medium rounded-lg transition-colors">
+        Upload Invoice
+      </button>
+    </form>
+  </div>
+
+  <!-- List -->
+  {% if received_invoices and received_invoices | length > 0 %}
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+      <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+        <thead class="bg-gray-50 dark:bg-gray-700">
+          <tr>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Vendor</th>
+            <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Amount</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Date</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Invoice #</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Notes</th>
+            <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Actions</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+          {% for inv in received_invoices %}
+            <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+              <td class="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white">{{ inv.vendor_name }}</td>
+              <td class="px-6 py-4 text-sm text-right text-gray-700 dark:text-gray-300">{{ inv.amount }} {{ inv.currency }}</td>
+              <td class="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{{ inv.invoice_date | default(value="-") }}</td>
+              <td class="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{{ inv.invoice_number | default(value="-") }}</td>
+              <td class="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{{ inv.notes | default(value="") }}</td>
+              <td class="px-6 py-4 text-right">
+                <button hx-delete="/c/{{ company_id }}/reports/received-invoices/{{ inv.id }}" hx-swap="none"
+                  class="text-red-600 dark:text-red-400 hover:text-red-700 text-sm"
+                  onclick="return confirm('Delete this received invoice?')">
+                  Delete
+                </button>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-8 text-center">
+      <p class="text-gray-500 dark:text-gray-400">No received invoices uploaded yet. Use the form above to upload vendor bills.</p>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

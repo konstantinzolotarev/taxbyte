@@ -9,6 +9,7 @@ use std::fmt;
 use crate::domain::auth::errors::{AuthError, RepositoryError};
 use crate::domain::company::CompanyError;
 use crate::domain::invoice::InvoiceError;
+use crate::domain::report::ReportError;
 
 use super::dtos::ErrorResponse;
 
@@ -259,6 +260,38 @@ impl From<InvoiceError> for ApiError {
   }
 }
 
+/// Convert ReportError to ApiError
+impl From<ReportError> for ApiError {
+  fn from(error: ReportError) -> Self {
+    match error {
+      ReportError::NotFound => ApiError::Validation("Report not found".to_string()),
+      ReportError::TransactionNotFound => ApiError::Validation("Transaction not found".to_string()),
+      ReportError::ReceivedInvoiceNotFound => {
+        ApiError::Validation("Received invoice not found".to_string())
+      }
+      ReportError::DuplicateReport => {
+        ApiError::Validation("A report for this month already exists".to_string())
+      }
+      ReportError::AlreadyMatched => {
+        ApiError::Validation("Transaction is already matched".to_string())
+      }
+      ReportError::NotMatched => ApiError::Validation("Transaction is not matched".to_string()),
+      ReportError::DirectionMismatch => {
+        ApiError::Validation("Direction mismatch for matching".to_string())
+      }
+      ReportError::NotDraft => ApiError::Validation("Report must be in draft status".to_string()),
+      ReportError::NoMatchedTransactions => {
+        ApiError::Validation("No matched transactions to generate".to_string())
+      }
+      ReportError::CsvParse(msg) => ApiError::Validation(format!("CSV error: {}", msg)),
+      ReportError::Validation(msg) => ApiError::Validation(msg),
+      ReportError::CloudStorage(msg) => ApiError::Internal(msg),
+      ReportError::FileError(msg) => ApiError::Internal(msg),
+      ReportError::Repository(e) => ApiError::Internal(format!("Repository error: {}", e)),
+    }
+  }
+}
+
 #[cfg(test)]
 mod tests {
   use super::*;
@@ -290,5 +323,50 @@ mod tests {
 
     let api_error: ApiError = AuthError::EmailAlreadyExists.into();
     assert_eq!(api_error.status_code(), StatusCode::CONFLICT);
+  }
+
+  #[test]
+  fn test_report_error_conversion() {
+    // NotFound, TransactionNotFound, DuplicateReport → 400
+    let err: ApiError = ReportError::NotFound.into();
+    assert_eq!(err.status_code(), StatusCode::BAD_REQUEST);
+
+    let err: ApiError = ReportError::TransactionNotFound.into();
+    assert_eq!(err.status_code(), StatusCode::BAD_REQUEST);
+
+    let err: ApiError = ReportError::ReceivedInvoiceNotFound.into();
+    assert_eq!(err.status_code(), StatusCode::BAD_REQUEST);
+
+    let err: ApiError = ReportError::DuplicateReport.into();
+    assert_eq!(err.status_code(), StatusCode::BAD_REQUEST);
+
+    let err: ApiError = ReportError::AlreadyMatched.into();
+    assert_eq!(err.status_code(), StatusCode::BAD_REQUEST);
+
+    let err: ApiError = ReportError::NotMatched.into();
+    assert_eq!(err.status_code(), StatusCode::BAD_REQUEST);
+
+    let err: ApiError = ReportError::DirectionMismatch.into();
+    assert_eq!(err.status_code(), StatusCode::BAD_REQUEST);
+
+    let err: ApiError = ReportError::NotDraft.into();
+    assert_eq!(err.status_code(), StatusCode::BAD_REQUEST);
+
+    let err: ApiError = ReportError::NoMatchedTransactions.into();
+    assert_eq!(err.status_code(), StatusCode::BAD_REQUEST);
+
+    // CsvParse, Validation → 400
+    let err: ApiError = ReportError::CsvParse("bad csv".to_string()).into();
+    assert_eq!(err.status_code(), StatusCode::BAD_REQUEST);
+
+    let err: ApiError = ReportError::Validation("invalid".to_string()).into();
+    assert_eq!(err.status_code(), StatusCode::BAD_REQUEST);
+
+    // CloudStorage, FileError → 500
+    let err: ApiError = ReportError::CloudStorage("drive error".to_string()).into();
+    assert_eq!(err.status_code(), StatusCode::INTERNAL_SERVER_ERROR);
+
+    let err: ApiError = ReportError::FileError("io error".to_string()).into();
+    assert_eq!(err.status_code(), StatusCode::INTERNAL_SERVER_ERROR);
   }
 }

@@ -28,6 +28,7 @@ pub struct Company {
   pub oauth_token_expires_at: Option<DateTime<Utc>>,
   pub oauth_connected_by: Option<Uuid>, // User who connected
   pub oauth_connected_at: Option<DateTime<Utc>>,
+  pub reports_folder_id: Option<String>,
   pub created_at: DateTime<Utc>,
   pub updated_at: DateTime<Utc>,
 }
@@ -52,6 +53,7 @@ impl Company {
       oauth_token_expires_at: None,
       oauth_connected_by: None,
       oauth_connected_at: None,
+      reports_folder_id: None,
       created_at: now,
       updated_at: now,
     }

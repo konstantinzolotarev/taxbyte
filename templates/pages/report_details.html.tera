@@ -1,0 +1,143 @@
+{% extends "layouts/base.html.tera" %}
+
+{% block title %}Report {{ report.month | zero_pad }}.{{ report.year }} - TaxByte{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+  <!-- Header -->
+  <div class="mb-6">
+    <a href="/c/{{ company_id }}/reports" class="text-primary-600 dark:text-primary-400 hover:underline text-sm">&larr; Back to Reports</a>
+    <div class="mt-4 flex justify-between items-start">
+      <div>
+        <h1 class="text-3xl font-bold text-gray-900 dark:text-white">
+          Report {{ report.month | zero_pad }}.{{ report.year }}
+        </h1>
+        <p class="mt-1 text-gray-600 dark:text-gray-400">IBAN: {{ report.bank_account_iban }}</p>
+      </div>
+      <div class="flex gap-3">
+        {% if report.status == "draft" %}
+          <button hx-post="/c/{{ company_id }}/reports/{{ report.id }}/generate" hx-swap="none"
+            class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors"
+            onclick="return confirm('Generate Drive folders and upload matched PDFs?')">
+            Generate Report
+          </button>
+        {% else %}
+          <span class="inline-flex items-center px-3 py-2 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 font-medium rounded-lg">
+            Generated
+          </span>
+        {% endif %}
+        <button hx-delete="/c/{{ company_id }}/reports/{{ report.id }}" hx-swap="none"
+          class="px-4 py-2 border border-red-300 dark:border-red-600 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 font-medium rounded-lg transition-colors"
+          onclick="return confirm('Delete this report and all its transactions?')">
+          Delete
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Summary Cards -->
+  <div class="grid grid-cols-4 gap-4 mb-6">
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+      <p class="text-sm text-gray-500 dark:text-gray-400">Transactions</p>
+      <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ report.transaction_count }}</p>
+    </div>
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+      <p class="text-sm text-gray-500 dark:text-gray-400">Matched</p>
+      <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ report.matched_count }} / {{ report.transaction_count }}</p>
+    </div>
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+      <p class="text-sm text-gray-500 dark:text-gray-400">Total Incoming</p>
+      <p class="text-2xl font-bold text-green-600 dark:text-green-400">+{{ report.total_incoming }}</p>
+    </div>
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+      <p class="text-sm text-gray-500 dark:text-gray-400">Total Outgoing</p>
+      <p class="text-2xl font-bold text-red-600 dark:text-red-400">-{{ report.total_outgoing }}</p>
+    </div>
+  </div>
+
+  <!-- Transactions Table -->
+  <div class="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+    <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+      <thead class="bg-gray-50 dark:bg-gray-700">
+        <tr>
+          <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">#</th>
+          <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Date</th>
+          <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Counterparty</th>
+          <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Description</th>
+          <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Amount</th>
+          <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Match</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+        {% for tx in transactions %}
+          <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50 {% if tx.is_matched %}bg-green-50/50 dark:bg-green-900/10{% endif %}">
+            <td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">{{ tx.row_number }}</td>
+            <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-300 whitespace-nowrap">{{ tx.date }}</td>
+            <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">
+              {{ tx.counterparty_name | default(value="-") }}
+              {% if tx.counterparty_account %}
+                <br><span class="text-xs text-gray-400">{{ tx.counterparty_account }}</span>
+              {% endif %}
+            </td>
+            <td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 max-w-xl truncate" title="{{ tx.description | default(value='') }}">
+              {{ tx.description | default(value="-") }}
+            </td>
+            <td class="px-4 py-3 text-sm text-right whitespace-nowrap font-medium {% if tx.direction == 'credit' %}text-green-600 dark:text-green-400{% else %}text-red-600 dark:text-red-400{% endif %}">
+              {% if tx.direction == "credit" %}+{% else %}-{% endif %}{{ tx.amount | abs }} {{ tx.currency }}
+            </td>
+            <td class="px-4 py-3 text-center">
+              {% if tx.is_matched %}
+                <div class="flex items-center justify-center gap-2">
+                  <span class="text-xs text-green-600 dark:text-green-400 font-medium">Matched</span>
+                  {% if report.status == "draft" %}
+                    <button hx-delete="/c/{{ company_id }}/reports/{{ report.id }}/match/{{ tx.id }}" hx-swap="none"
+                      class="text-xs text-red-500 hover:text-red-700" title="Unmatch">
+                      &times;
+                    </button>
+                  {% endif %}
+                </div>
+              {% elif report.status == "draft" %}
+                <div x-data="{ open: false }" class="relative">
+                  <button @click="open = !open" class="text-xs px-2 py-1 bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 rounded hover:bg-primary-200 dark:hover:bg-primary-900/50">
+                    Match
+                  </button>
+                  <div x-show="open" @click.outside="open = false" x-cloak
+                    class="absolute right-0 mt-1 w-80 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50 p-4">
+                    <form hx-post="/c/{{ company_id }}/reports/{{ report.id }}/match/{{ tx.id }}" hx-swap="none"
+                      class="space-y-3">
+                      {% if tx.direction == "credit" %}
+                        <p class="text-xs text-gray-500 dark:text-gray-400">Match to an issued invoice (incoming payment):</p>
+                        <select name="invoice_id" required class="w-full text-sm px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                          <option value="">Select invoice...</option>
+                          {% if invoices %}
+                            {% for inv in invoices %}
+                              <option value="{{ inv.id }}">{{ inv.invoice_number }} - {{ inv.customer_name }} ({{ inv.total }})</option>
+                            {% endfor %}
+                          {% endif %}
+                        </select>
+                      {% else %}
+                        <p class="text-xs text-gray-500 dark:text-gray-400">Match to a received invoice (outgoing payment):</p>
+                        <select name="received_invoice_id" required class="w-full text-sm px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                          <option value="">Select received invoice...</option>
+                          {% if received_invoices %}
+                            {% for ri in received_invoices %}
+                              <option value="{{ ri.id }}">{{ ri.vendor_name }} - {{ ri.amount }} {{ ri.currency }}</option>
+                            {% endfor %}
+                          {% endif %}
+                        </select>
+                      {% endif %}
+                      <button type="submit" class="w-full text-sm px-3 py-1 bg-primary-600 hover:bg-primary-700 text-white rounded">
+                        Confirm Match
+                      </button>
+                    </form>
+                  </div>
+                </div>
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

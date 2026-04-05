@@ -9,6 +9,7 @@ pub mod dev_mock_oauth;
 pub mod invoices_web;
 pub mod oauth_callback;
 pub mod pages;
+pub mod reports_web;
 pub mod web_auth;
 
 use crate::{

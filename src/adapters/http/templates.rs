@@ -9,6 +9,21 @@ pub struct TemplateEngine {
   tera: Arc<Tera>,
 }
 
+/// Custom Tera filter to zero-pad a number to 2 digits (e.g. 3 → "03")
+fn zero_pad(value: &Value, _args: &HashMap<String, Value>) -> tera::Result<Value> {
+  let num = try_get_value!("zero_pad", "value", u64, value);
+  Ok(to_value(format!("{:02}", num))?)
+}
+
+/// Custom Tera filter to get absolute value of a decimal string
+fn abs_filter(value: &Value, _args: &HashMap<String, Value>) -> tera::Result<Value> {
+  let decimal_str = try_get_value!("abs", "value", String, value);
+  let decimal: Decimal = decimal_str
+    .parse()
+    .map_err(|e| tera::Error::msg(format!("Invalid decimal value: {}", e)))?;
+  Ok(to_value(decimal.abs().to_string())?)
+}
+
 /// Custom Tera filter to format Decimal values as money
 /// Rounds to 2 decimal places, removes .00 if zero cents
 fn format_money(value: &Value, _args: &HashMap<String, Value>) -> tera::Result<Value> {
@@ -42,6 +57,8 @@ impl TemplateEngine {
 
     // Register custom filters
     tera.register_filter("format_money", format_money);
+    tera.register_filter("zero_pad", zero_pad);
+    tera.register_filter("abs", abs_filter);
 
     Ok(Self {
       tera: Arc::new(tera),

@@ -69,6 +69,13 @@ rust_decimal_macros = "1.36"
 # Traits
 async-trait = "0.1.89"
 
+# CSV parsing
+csv = "1.3"
+encoding_rs = "0.8"
+
+# File upload
+actix-multipart = "0.7"
+
 # Utilities
 lazy_static = "1.5.0"
 

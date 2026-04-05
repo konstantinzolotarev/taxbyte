@@ -26,6 +26,7 @@ struct CompanyRow {
   oauth_token_expires_at: Option<String>,
   oauth_connected_by: Option<String>,
   oauth_connected_at: Option<String>,
+  reports_folder_id: Option<String>,
   created_at: String,
   updated_at: String,
 }
@@ -118,6 +119,7 @@ impl TryFrom<CompanyRow> for Company {
       oauth_token_expires_at,
       oauth_connected_by,
       oauth_connected_at,
+      reports_folder_id: row.reports_folder_id,
       created_at,
       updated_at,
     })
@@ -146,9 +148,9 @@ impl CompanyRepository for SqliteCompanyRepository {
 
     let row = sqlx::query_as::<_, CompanyRow>(
       r#"
-      INSERT INTO companies (id, name, email, phone, address, tax_id, vat_number, google_drive_folder_id, storage_provider, storage_config, oauth_access_token, oauth_refresh_token, oauth_token_expires_at, oauth_connected_by, oauth_connected_at, created_at, updated_at)
-      VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)
-      RETURNING id, name, email, phone, address, tax_id, vat_number, google_drive_folder_id, storage_provider, storage_config, oauth_access_token, oauth_refresh_token, oauth_token_expires_at, oauth_connected_by, oauth_connected_at, created_at, updated_at
+      INSERT INTO companies (id, name, email, phone, address, tax_id, vat_number, google_drive_folder_id, storage_provider, storage_config, oauth_access_token, oauth_refresh_token, oauth_token_expires_at, oauth_connected_by, oauth_connected_at, reports_folder_id, created_at, updated_at)
+      VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18)
+      RETURNING id, name, email, phone, address, tax_id, vat_number, google_drive_folder_id, storage_provider, storage_config, oauth_access_token, oauth_refresh_token, oauth_token_expires_at, oauth_connected_by, oauth_connected_at, reports_folder_id, created_at, updated_at
       "#,
     )
     .bind(company.id.to_string())
@@ -166,6 +168,7 @@ impl CompanyRepository for SqliteCompanyRepository {
     .bind(company.oauth_token_expires_at.map(|dt| dt.to_rfc3339()))
     .bind(company.oauth_connected_by.map(|id| id.to_string()))
     .bind(company.oauth_connected_at.map(|dt| dt.to_rfc3339()))
+    .bind(company.reports_folder_id.as_deref())
     .bind(company.created_at.to_rfc3339())
     .bind(company.updated_at.to_rfc3339())
     .fetch_one(&self.pool)
@@ -177,7 +180,7 @@ impl CompanyRepository for SqliteCompanyRepository {
   async fn find_by_id(&self, id: Uuid) -> Result<Option<Company>, CompanyError> {
     let row = sqlx::query_as::<_, CompanyRow>(
       r#"
-      SELECT id, name, email, phone, address, tax_id, vat_number, google_drive_folder_id, storage_provider, storage_config, oauth_access_token, oauth_refresh_token, oauth_token_expires_at, oauth_connected_by, oauth_connected_at, created_at, updated_at
+      SELECT id, name, email, phone, address, tax_id, vat_number, google_drive_folder_id, storage_provider, storage_config, oauth_access_token, oauth_refresh_token, oauth_token_expires_at, oauth_connected_by, oauth_connected_at, reports_folder_id, created_at, updated_at
       FROM companies
       WHERE id = ?1
       "#,
@@ -200,9 +203,9 @@ impl CompanyRepository for SqliteCompanyRepository {
     let row = sqlx::query_as::<_, CompanyRow>(
       r#"
       UPDATE companies
-      SET name = ?2, email = ?3, phone = ?4, address = ?5, tax_id = ?6, vat_number = ?7, google_drive_folder_id = ?8, storage_provider = ?9, storage_config = ?10, oauth_access_token = ?11, oauth_refresh_token = ?12, oauth_token_expires_at = ?13, oauth_connected_by = ?14, oauth_connected_at = ?15, updated_at = ?16
+      SET name = ?2, email = ?3, phone = ?4, address = ?5, tax_id = ?6, vat_number = ?7, google_drive_folder_id = ?8, storage_provider = ?9, storage_config = ?10, oauth_access_token = ?11, oauth_refresh_token = ?12, oauth_token_expires_at = ?13, oauth_connected_by = ?14, oauth_connected_at = ?15, reports_folder_id = ?16, updated_at = ?17
       WHERE id = ?1
-      RETURNING id, name, email, phone, address, tax_id, vat_number, google_drive_folder_id, storage_provider, storage_config, oauth_access_token, oauth_refresh_token, oauth_token_expires_at, oauth_connected_by, oauth_connected_at, created_at, updated_at
+      RETURNING id, name, email, phone, address, tax_id, vat_number, google_drive_folder_id, storage_provider, storage_config, oauth_access_token, oauth_refresh_token, oauth_token_expires_at, oauth_connected_by, oauth_connected_at, reports_folder_id, created_at, updated_at
       "#,
     )
     .bind(company.id.to_string())
@@ -220,6 +223,7 @@ impl CompanyRepository for SqliteCompanyRepository {
     .bind(company.oauth_token_expires_at.map(|dt| dt.to_rfc3339()))
     .bind(company.oauth_connected_by.map(|id| id.to_string()))
     .bind(company.oauth_connected_at.map(|dt| dt.to_rfc3339()))
+    .bind(company.reports_folder_id.as_deref())
     .bind(company.updated_at.to_rfc3339())
     .fetch_one(&self.pool)
     .await?;

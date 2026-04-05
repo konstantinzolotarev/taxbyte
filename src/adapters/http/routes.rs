@@ -18,6 +18,12 @@ use crate::application::invoice::{
   CreateInvoiceUseCase, GetInvoiceDetailsUseCase, ListCustomersUseCase, ListInvoicesUseCase,
   ReuploadInvoiceUseCase, UpdateCustomerUseCase,
 };
+use crate::application::report::{
+  DeleteReceivedInvoiceUseCase, DeleteReportUseCase, GenerateReportUseCase,
+  GetReportDetailsUseCase, ImportBankStatementUseCase, ListMonthlyReportsUseCase,
+  ListReceivedInvoicesUseCase, MatchTransactionUseCase, UnmatchTransactionUseCase,
+  UploadReceivedInvoiceUseCase,
+};
 use crate::domain::auth::ports::UserRepository;
 use crate::domain::auth::services::AuthService;
 use crate::domain::company::ports::{
@@ -34,7 +40,7 @@ use super::handlers::company::{
 };
 use super::handlers::{
   bank_accounts, bank_accounts_web, company_settings, company_web, customers_web, get_user,
-  invoices_web, oauth_callback, pages, web_auth,
+  invoices_web, oauth_callback, pages, reports_web, web_auth,
 };
 use super::middleware::{CompanyContextMiddleware, WebAuthMiddleware};
 use super::templates::TemplateEngine;
@@ -92,6 +98,17 @@ pub struct WebRouteDependencies {
   pub connect_google_drive_use_case: Arc<ConnectGoogleDriveUseCase>,
   pub disconnect_google_drive_use_case: Arc<DisconnectGoogleDriveUseCase>,
   pub test_drive_connection_use_case: Arc<TestDriveConnectionUseCase>,
+  // Report use cases
+  pub import_bank_statement_use_case: Arc<ImportBankStatementUseCase>,
+  pub list_monthly_reports_use_case: Arc<ListMonthlyReportsUseCase>,
+  pub get_report_details_use_case: Arc<GetReportDetailsUseCase>,
+  pub upload_received_invoice_use_case: Arc<UploadReceivedInvoiceUseCase>,
+  pub list_received_invoices_use_case: Arc<ListReceivedInvoicesUseCase>,
+  pub match_transaction_use_case: Arc<MatchTransactionUseCase>,
+  pub unmatch_transaction_use_case: Arc<UnmatchTransactionUseCase>,
+  pub generate_report_use_case: Arc<GenerateReportUseCase>,
+  pub delete_report_use_case: Arc<DeleteReportUseCase>,
+  pub delete_received_invoice_use_case: Arc<DeleteReceivedInvoiceUseCase>,
 }
 
 /// Configure authentication routes
@@ -605,6 +622,64 @@ pub fn configure_company_scoped_routes(cfg: &mut web::ServiceConfig, deps: &WebR
       .route(
         "/bank-accounts/{account_id}/set-active",
         web::post().to(bank_accounts_web::set_active_bank_account_handler),
+      )
+      // Reports
+      .app_data(web::Data::new(deps.get_companies_use_case.clone()))
+      .app_data(web::Data::new(deps.list_invoices_use_case.clone()))
+      .app_data(web::Data::new(deps.import_bank_statement_use_case.clone()))
+      .app_data(web::Data::new(deps.list_monthly_reports_use_case.clone()))
+      .app_data(web::Data::new(deps.get_report_details_use_case.clone()))
+      .app_data(web::Data::new(
+        deps.upload_received_invoice_use_case.clone(),
+      ))
+      .app_data(web::Data::new(deps.list_received_invoices_use_case.clone()))
+      .app_data(web::Data::new(deps.match_transaction_use_case.clone()))
+      .app_data(web::Data::new(deps.unmatch_transaction_use_case.clone()))
+      .app_data(web::Data::new(deps.generate_report_use_case.clone()))
+      .app_data(web::Data::new(deps.delete_report_use_case.clone()))
+      .app_data(web::Data::new(
+        deps.delete_received_invoice_use_case.clone(),
+      ))
+      .route("/reports", web::get().to(reports_web::reports_page))
+      .route(
+        "/reports/create",
+        web::get().to(reports_web::create_report_page),
+      )
+      .route(
+        "/reports/import",
+        web::post().to(reports_web::import_bank_statement),
+      )
+      .route(
+        "/reports/received-invoices",
+        web::get().to(reports_web::received_invoices_page),
+      )
+      .route(
+        "/reports/received-invoices",
+        web::post().to(reports_web::upload_received_invoice),
+      )
+      .route(
+        "/reports/received-invoices/{id}",
+        web::delete().to(reports_web::delete_received_invoice),
+      )
+      .route(
+        "/reports/{id}",
+        web::get().to(reports_web::report_details_page),
+      )
+      .route(
+        "/reports/{id}/match/{tx_id}",
+        web::post().to(reports_web::match_transaction),
+      )
+      .route(
+        "/reports/{id}/match/{tx_id}",
+        web::delete().to(reports_web::unmatch_transaction),
+      )
+      .route(
+        "/reports/{id}/generate",
+        web::post().to(reports_web::generate_report),
+      )
+      .route(
+        "/reports/{id}",
+        web::delete().to(reports_web::delete_report),
       ),
   );
 }
