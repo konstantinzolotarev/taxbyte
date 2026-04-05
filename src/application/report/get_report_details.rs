@@ -28,6 +28,8 @@ pub struct TransactionDetail {
   pub matched_invoice_id: Option<Uuid>,
   pub matched_received_invoice_id: Option<Uuid>,
   pub is_matched: bool,
+  pub receipt_path: Option<String>,
+  pub has_receipt: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -69,6 +71,7 @@ impl GetReportDetailsUseCase {
       .into_iter()
       .map(|t| {
         let is_matched = t.is_matched();
+        let has_receipt = t.receipt_path.is_some();
         TransactionDetail {
           id: t.id,
           row_number: t.row_number,
@@ -84,6 +87,8 @@ impl GetReportDetailsUseCase {
           matched_invoice_id: t.matched_invoice_id,
           matched_received_invoice_id: t.matched_received_invoice_id,
           is_matched,
+          receipt_path: t.receipt_path,
+          has_receipt,
         }
       })
       .collect();

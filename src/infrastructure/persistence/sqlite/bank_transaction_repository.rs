@@ -26,6 +26,7 @@ struct BankTransactionRow {
   registry_code: Option<String>,
   matched_invoice_id: Option<String>,
   matched_received_invoice_id: Option<String>,
+  receipt_path: Option<String>,
 }
 
 impl TryFrom<BankTransactionRow> for BankTransaction {
@@ -59,6 +60,7 @@ impl TryFrom<BankTransactionRow> for BankTransaction {
         .map(|s| Uuid::parse_str(&s))
         .transpose()
         .map_err(|e| ReportError::Repository(RepositoryError::QueryFailed(e.to_string())))?,
+      receipt_path: row.receipt_path,
     })
   }
 }
@@ -109,7 +111,7 @@ impl BankTransactionRepository for SqliteBankTransactionRepository {
   async fn find_by_report_id(&self, report_id: Uuid) -> Result<Vec<BankTransaction>, ReportError> {
     let rows = sqlx::query_as::<_, BankTransactionRow>(
             r#"
-            SELECT id, report_id, row_number, date, counterparty_name, counterparty_account, direction, amount, reference_number, description, currency, registry_code, matched_invoice_id, matched_received_invoice_id
+            SELECT id, report_id, row_number, date, counterparty_name, counterparty_account, direction, amount, reference_number, description, currency, registry_code, matched_invoice_id, matched_received_invoice_id, receipt_path
             FROM bank_transactions WHERE report_id = ?1 ORDER BY row_number
             "#,
         )
@@ -123,7 +125,7 @@ impl BankTransactionRepository for SqliteBankTransactionRepository {
   async fn find_by_id(&self, id: Uuid) -> Result<Option<BankTransaction>, ReportError> {
     let row = sqlx::query_as::<_, BankTransactionRow>(
             r#"
-            SELECT id, report_id, row_number, date, counterparty_name, counterparty_account, direction, amount, reference_number, description, currency, registry_code, matched_invoice_id, matched_received_invoice_id
+            SELECT id, report_id, row_number, date, counterparty_name, counterparty_account, direction, amount, reference_number, description, currency, registry_code, matched_invoice_id, matched_received_invoice_id, receipt_path
             FROM bank_transactions WHERE id = ?1
             "#,
         )
@@ -164,6 +166,25 @@ impl BankTransactionRepository for SqliteBankTransactionRepository {
             "#,
     )
     .bind(transaction_id.to_string())
+    .execute(&self.pool)
+    .await?;
+    Ok(())
+  }
+
+  async fn update_receipt_path(
+    &self,
+    transaction_id: Uuid,
+    receipt_path: Option<String>,
+  ) -> Result<(), ReportError> {
+    sqlx::query(
+      r#"
+            UPDATE bank_transactions
+            SET receipt_path = ?2
+            WHERE id = ?1
+            "#,
+    )
+    .bind(transaction_id.to_string())
+    .bind(receipt_path)
     .execute(&self.pool)
     .await?;
     Ok(())

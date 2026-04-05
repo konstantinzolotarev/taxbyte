@@ -245,6 +245,30 @@ impl ReportService {
     Ok(pdf_path)
   }
 
+  /// Update receipt path on a transaction
+  pub async fn update_receipt_path(
+    &self,
+    transaction_id: Uuid,
+    receipt_path: Option<String>,
+  ) -> Result<(), ReportError> {
+    // Verify transaction exists
+    let tx = self
+      .transaction_repo
+      .find_by_id(transaction_id)
+      .await?
+      .ok_or(ReportError::TransactionNotFound)?;
+
+    self
+      .transaction_repo
+      .update_receipt_path(transaction_id, receipt_path)
+      .await?;
+
+    // Recalculate matched count since receipt affects is_matched()
+    self.update_matched_count(tx.report_id).await?;
+
+    Ok(())
+  }
+
   /// Get a received invoice by ID
   pub async fn get_received_invoice(&self, id: Uuid) -> Result<ReceivedInvoice, ReportError> {
     self

@@ -37,6 +37,11 @@ pub trait BankTransactionRepository: Send + Sync {
     received_invoice_id: Option<Uuid>,
   ) -> Result<(), ReportError>;
   async fn clear_match(&self, transaction_id: Uuid) -> Result<(), ReportError>;
+  async fn update_receipt_path(
+    &self,
+    transaction_id: Uuid,
+    receipt_path: Option<String>,
+  ) -> Result<(), ReportError>;
   async fn delete_by_report_id(&self, report_id: Uuid) -> Result<(), ReportError>;
 }
 

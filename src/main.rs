@@ -495,6 +495,9 @@ async fn main() -> std::io::Result<()> {
   let delete_received_invoice_use_case = Arc::new(
     taxbyte::application::report::DeleteReceivedInvoiceUseCase::new(report_service.clone()),
   );
+  let upload_receipt_use_case = Arc::new(taxbyte::application::report::UploadReceiptUseCase::new(
+    report_service.clone(),
+  ));
 
   // Generate report use case needs cloud storage — use a no-op placeholder
   // (actual Drive adapter is created per-company when generating)
@@ -617,6 +620,7 @@ async fn main() -> std::io::Result<()> {
             generate_report_use_case: generate_report_use_case.clone(),
             delete_report_use_case: delete_report_use_case.clone(),
             delete_received_invoice_use_case: delete_received_invoice_use_case.clone(),
+            upload_receipt_use_case: upload_receipt_use_case.clone(),
           },
         )
       })

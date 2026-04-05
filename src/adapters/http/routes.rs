@@ -22,7 +22,7 @@ use crate::application::report::{
   DeleteReceivedInvoiceUseCase, DeleteReportUseCase, GenerateReportUseCase,
   GetReportDetailsUseCase, ImportBankStatementUseCase, ListMonthlyReportsUseCase,
   ListReceivedInvoicesUseCase, MatchTransactionUseCase, UnmatchTransactionUseCase,
-  UploadReceivedInvoiceUseCase,
+  UploadReceiptUseCase, UploadReceivedInvoiceUseCase,
 };
 use crate::domain::auth::ports::UserRepository;
 use crate::domain::auth::services::AuthService;
@@ -109,6 +109,7 @@ pub struct WebRouteDependencies {
   pub generate_report_use_case: Arc<GenerateReportUseCase>,
   pub delete_report_use_case: Arc<DeleteReportUseCase>,
   pub delete_received_invoice_use_case: Arc<DeleteReceivedInvoiceUseCase>,
+  pub upload_receipt_use_case: Arc<UploadReceiptUseCase>,
 }
 
 /// Configure authentication routes
@@ -640,6 +641,7 @@ pub fn configure_company_scoped_routes(cfg: &mut web::ServiceConfig, deps: &WebR
       .app_data(web::Data::new(
         deps.delete_received_invoice_use_case.clone(),
       ))
+      .app_data(web::Data::new(deps.upload_receipt_use_case.clone()))
       .route("/reports", web::get().to(reports_web::reports_page))
       .route(
         "/reports/create",
@@ -672,6 +674,10 @@ pub fn configure_company_scoped_routes(cfg: &mut web::ServiceConfig, deps: &WebR
       .route(
         "/reports/{id}/match/{tx_id}",
         web::delete().to(reports_web::unmatch_transaction),
+      )
+      .route(
+        "/reports/{id}/receipt/{tx_id}",
+        web::post().to(reports_web::upload_receipt),
       )
       .route(
         "/reports/{id}/generate",

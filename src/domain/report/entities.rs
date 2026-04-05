@@ -61,6 +61,7 @@ pub struct BankTransaction {
   pub registry_code: Option<String>,
   pub matched_invoice_id: Option<Uuid>,
   pub matched_received_invoice_id: Option<Uuid>,
+  pub receipt_path: Option<String>,
 }
 
 impl BankTransaction {
@@ -93,11 +94,14 @@ impl BankTransaction {
       registry_code,
       matched_invoice_id: None,
       matched_received_invoice_id: None,
+      receipt_path: None,
     }
   }
 
   pub fn is_matched(&self) -> bool {
-    self.matched_invoice_id.is_some() || self.matched_received_invoice_id.is_some()
+    self.matched_invoice_id.is_some()
+      || self.matched_received_invoice_id.is_some()
+      || self.receipt_path.is_some()
   }
 }
 

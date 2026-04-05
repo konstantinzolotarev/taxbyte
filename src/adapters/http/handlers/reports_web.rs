@@ -19,7 +19,8 @@ use crate::application::report::{
   ImportBankStatementCommand, ImportBankStatementUseCase, ListMonthlyReportsCommand,
   ListMonthlyReportsUseCase, ListReceivedInvoicesCommand, ListReceivedInvoicesUseCase,
   MatchTransactionCommand, MatchTransactionUseCase, UnmatchTransactionCommand,
-  UnmatchTransactionUseCase, UploadReceivedInvoiceCommand, UploadReceivedInvoiceUseCase,
+  UnmatchTransactionUseCase, UploadReceiptCommand, UploadReceiptUseCase,
+  UploadReceivedInvoiceCommand, UploadReceivedInvoiceUseCase,
 };
 
 // GET /reports - List monthly reports
@@ -478,6 +479,81 @@ pub async fn upload_received_invoice(
       .insert_header((
         "HX-Redirect",
         format!("/c/{}/reports/received-invoices", company_id),
+      ))
+      .finish(),
+  )
+}
+
+// POST /reports/{id}/receipt/{tx_id} - Upload receipt to transaction
+pub async fn upload_receipt(
+  req: HttpRequest,
+  path: web::Path<(Uuid, Uuid, Uuid)>,
+  mut payload: Multipart,
+  upload_receipt_use_case: web::Data<Arc<UploadReceiptUseCase>>,
+) -> Result<HttpResponse, ApiError> {
+  let _user = get_user(&req)?;
+  let company_context = get_company_context(&req)?;
+  let company_id = company_context.company_id;
+  let (_, report_id, tx_id) = path.into_inner();
+
+  let mut file_bytes: Option<Vec<u8>> = None;
+  let mut file_ext = String::from("bin");
+
+  while let Some(item) = payload.next().await {
+    let mut field = item.map_err(|e| ApiError::Validation(format!("Upload error: {}", e)))?;
+    let field_name = field.name().map(|s| s.to_string()).unwrap_or_default();
+
+    if field_name == "file" {
+      // Extract extension from filename
+      if let Some(cd) = field.content_disposition() {
+        if let Some(filename) = cd.get_filename() {
+          if let Some(ext) = filename.rsplit('.').next() {
+            file_ext = ext.to_lowercase();
+          }
+        }
+      }
+
+      let mut bytes = Vec::new();
+      while let Some(chunk) = field.next().await {
+        let data = chunk.map_err(|e| ApiError::Validation(format!("Upload error: {}", e)))?;
+        bytes.extend_from_slice(&data);
+      }
+      file_bytes = Some(bytes);
+    }
+  }
+
+  let file_bytes =
+    file_bytes.ok_or_else(|| ApiError::Validation("File is required".to_string()))?;
+
+  if file_bytes.is_empty() {
+    return Err(ApiError::Validation("File is empty".to_string()));
+  }
+
+  // Save file to disk
+  let receipt_dir = format!("data/receipts/{}", company_id);
+  tokio::fs::create_dir_all(&receipt_dir)
+    .await
+    .map_err(|e| ApiError::Internal(format!("Failed to create directory: {}", e)))?;
+
+  let file_id = Uuid::new_v4();
+  let receipt_path = format!("{}/{}.{}", receipt_dir, file_id, file_ext);
+  tokio::fs::write(&receipt_path, &file_bytes)
+    .await
+    .map_err(|e| ApiError::Internal(format!("Failed to save receipt: {}", e)))?;
+
+  upload_receipt_use_case
+    .execute(UploadReceiptCommand {
+      transaction_id: tx_id,
+      receipt_path,
+    })
+    .await
+    .map_err(ApiError::from)?;
+
+  Ok(
+    HttpResponse::Ok()
+      .insert_header((
+        "HX-Redirect",
+        format!("/c/{}/reports/{}", company_id, report_id),
       ))
       .finish(),
   )

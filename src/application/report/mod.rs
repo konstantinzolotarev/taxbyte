@@ -7,6 +7,7 @@ mod list_monthly_reports;
 mod list_received_invoices;
 mod match_transaction;
 mod unmatch_transaction;
+mod upload_receipt;
 mod upload_received_invoice;
 
 pub use delete_received_invoice::{DeleteReceivedInvoiceCommand, DeleteReceivedInvoiceUseCase};
@@ -26,6 +27,7 @@ pub use list_received_invoices::{
 };
 pub use match_transaction::{MatchTransactionCommand, MatchTransactionUseCase};
 pub use unmatch_transaction::{UnmatchTransactionCommand, UnmatchTransactionUseCase};
+pub use upload_receipt::{UploadReceiptCommand, UploadReceiptUseCase};
 pub use upload_received_invoice::{
   UploadReceivedInvoiceCommand, UploadReceivedInvoiceResponse, UploadReceivedInvoiceUseCase,
 };
