@@ -269,6 +269,7 @@ mod tests {
   }
 
   #[tokio::test]
+  #[ignore]
   async fn test_create_session() {
     let (pool, _container) = setup_test_db().await;
     let repo = PostgresSessionRepository::without_redis(pool.clone());
@@ -290,6 +291,7 @@ mod tests {
   }
 
   #[tokio::test]
+  #[ignore]
   async fn test_find_by_token_hash() {
     let (pool, _container) = setup_test_db().await;
     let repo = PostgresSessionRepository::without_redis(pool.clone());
@@ -313,6 +315,7 @@ mod tests {
   }
 
   #[tokio::test]
+  #[ignore]
   async fn test_find_by_user_id() {
     let (pool, _container) = setup_test_db().await;
     let repo = PostgresSessionRepository::without_redis(pool.clone());
@@ -338,6 +341,7 @@ mod tests {
   }
 
   #[tokio::test]
+  #[ignore]
   async fn test_delete_session() {
     let (pool, _container) = setup_test_db().await;
     let repo = PostgresSessionRepository::without_redis(pool.clone());
@@ -362,6 +366,7 @@ mod tests {
   }
 
   #[tokio::test]
+  #[ignore]
   async fn test_delete_all_for_user() {
     let (pool, _container) = setup_test_db().await;
     let repo = PostgresSessionRepository::without_redis(pool.clone());

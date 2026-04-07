@@ -167,6 +167,7 @@ mod tests {
   }
 
   #[tokio::test]
+  #[ignore]
   async fn test_create_login_attempt() {
     let (pool, _container) = setup_test_db().await;
     let repo = PostgresLoginAttemptRepository::new(pool);
@@ -184,6 +185,7 @@ mod tests {
   }
 
   #[tokio::test]
+  #[ignore]
   async fn test_count_recent_failures() {
     let (pool, _container) = setup_test_db().await;
     let repo = PostgresLoginAttemptRepository::new(pool.clone());

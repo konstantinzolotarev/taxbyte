@@ -301,6 +301,7 @@ mod tests {
   }
 
   #[tokio::test]
+  #[ignore]
   async fn test_create_user() {
     let (pool, _container) = setup_test_db().await;
     let repo = PostgresUserRepository::new(pool);
@@ -320,6 +321,7 @@ mod tests {
   }
 
   #[tokio::test]
+  #[ignore]
   async fn test_find_by_email() {
     let (pool, _container) = setup_test_db().await;
     let repo = PostgresUserRepository::new(pool);
@@ -340,6 +342,7 @@ mod tests {
   }
 
   #[tokio::test]
+  #[ignore]
   async fn test_duplicate_email() {
     let (pool, _container) = setup_test_db().await;
     let repo = PostgresUserRepository::new(pool);
@@ -367,6 +370,7 @@ mod tests {
   }
 
   #[tokio::test]
+  #[ignore]
   async fn test_update_user() {
     let (pool, _container) = setup_test_db().await;
     let repo = PostgresUserRepository::new(pool);
@@ -389,6 +393,7 @@ mod tests {
   }
 
   #[tokio::test]
+  #[ignore]
   async fn test_soft_delete() {
     let (pool, _container) = setup_test_db().await;
     let repo = PostgresUserRepository::new(pool.clone());

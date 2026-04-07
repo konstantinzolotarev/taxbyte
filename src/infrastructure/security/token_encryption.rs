@@ -121,7 +121,7 @@ mod tests {
   #[test]
   fn test_encrypt_decrypt_roundtrip() {
     // Generate a test key (32 bytes, base64 encoded)
-    let key = general_purpose::STANDARD.encode(&[42u8; 32]);
+    let key = general_purpose::STANDARD.encode([42u8; 32]);
     let encryption = AesTokenEncryption::new(&key).unwrap();
 
     let plaintext = "ya29.a0AfB_byABC123...refresh_token";
@@ -133,7 +133,7 @@ mod tests {
 
   #[test]
   fn test_encrypt_produces_different_ciphertexts() {
-    let key = general_purpose::STANDARD.encode(&[42u8; 32]);
+    let key = general_purpose::STANDARD.encode([42u8; 32]);
     let encryption = AesTokenEncryption::new(&key).unwrap();
 
     let plaintext = "same_token";
@@ -150,13 +150,13 @@ mod tests {
 
   #[test]
   fn test_invalid_key_length() {
-    let short_key = general_purpose::STANDARD.encode(&[42u8; 16]); // Too short
+    let short_key = general_purpose::STANDARD.encode([42u8; 16]); // Too short
     assert!(AesTokenEncryption::new(&short_key).is_err());
   }
 
   #[test]
   fn test_invalid_base64() {
-    let key = general_purpose::STANDARD.encode(&[42u8; 32]);
+    let key = general_purpose::STANDARD.encode([42u8; 32]);
     let encryption = AesTokenEncryption::new(&key).unwrap();
 
     assert!(encryption.decrypt("not-valid-base64!!!").is_err());
@@ -164,7 +164,7 @@ mod tests {
 
   #[test]
   fn test_tampered_ciphertext() {
-    let key = general_purpose::STANDARD.encode(&[42u8; 32]);
+    let key = general_purpose::STANDARD.encode([42u8; 32]);
     let encryption = AesTokenEncryption::new(&key).unwrap();
 
     let plaintext = "secret_token";
