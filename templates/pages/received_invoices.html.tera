@@ -42,7 +42,7 @@
         </div>
       </div>
       <div id="invoice-fields" class="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4">
-        {% include "partials/received_invoice_form_fields" %}
+        {% include "partials/received_invoice_form_fields.html.tera" %}
       </div>
       <div class="mb-4">
         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Notes</label>
