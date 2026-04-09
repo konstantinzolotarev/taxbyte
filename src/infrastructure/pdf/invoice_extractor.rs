@@ -46,7 +46,6 @@ fn extract_amount(text: &str) -> Option<String> {
     "grand total",
     "invoice total",
     "total to pay",
-    "total amount",
     "amount due",
     "total due",
     "amount payable",
@@ -56,7 +55,8 @@ fn extract_amount(text: &str) -> Option<String> {
   ];
 
   // Generic keywords — checked second, LAST occurrence wins (grand total is usually at bottom)
-  let generic_keywords = ["tasuda", "kokku", "total", "summa", "итого"];
+  // "total amount" is here because it often refers to a subtotal (before shipping/tax)
+  let generic_keywords = ["total amount", "tasuda", "kokku", "total", "summa", "итого"];
 
   let amount_re = Regex::new(r"(\d[\d\s]*[.,]\d{2})\b").unwrap();
   let text_lower = text.to_lowercase();
@@ -68,11 +68,21 @@ fn extract_amount(text: &str) -> Option<String> {
     }
   }
 
-  // Pass 2: generic keywords — use LAST occurrence (bottom of document = grand total)
+  // Pass 2: generic keywords — find the last occurrence of each, pick the one
+  // closest to the end of the document (the final total is usually at the bottom)
+  let mut best_generic: Option<(usize, String)> = None;
   for keyword in &generic_keywords {
-    if let Some(amount) = find_amount_near_last_keyword(&text_lower, text, keyword, &amount_re) {
-      return Some(amount);
+    if let Some(pos) = text_lower.rfind(keyword) {
+      if let Some(amount) = extract_amount_after_pos(text, pos + keyword.len(), &amount_re) {
+        match &best_generic {
+          Some((prev_pos, _)) if pos <= *prev_pos => {}
+          _ => best_generic = Some((pos, amount)),
+        }
+      }
     }
+  }
+  if let Some((_, amount)) = best_generic {
+    return Some(amount);
   }
 
   // Fallback: find the largest amount in the document
@@ -101,17 +111,6 @@ fn find_amount_near_keyword(
   amount_re: &Regex,
 ) -> Option<String> {
   let pos = text_lower.find(keyword)?;
-  extract_amount_after_pos(text, pos + keyword.len(), amount_re)
-}
-
-/// Find an amount near the LAST occurrence of a keyword.
-fn find_amount_near_last_keyword(
-  text_lower: &str,
-  text: &str,
-  keyword: &str,
-  amount_re: &Regex,
-) -> Option<String> {
-  let pos = text_lower.rfind(keyword)?;
   extract_amount_after_pos(text, pos + keyword.len(), amount_re)
 }
 
@@ -496,6 +495,16 @@ mod tests {
     // When only generic "kokku" appears, prefer the last one (grand total at bottom)
     let text = "Kokku 100,00\nMore lines\nKokku 500,00";
     assert_eq!(extract_amount(text), Some("500.00".to_string()));
+  }
+
+  #[test]
+  fn test_extract_amount_total_after_shipping() {
+    // Ubiquiti-style invoice: "Total Amount" is subtotal, "Total" at bottom is grand total
+    let text = "UniFi Travel Router 70,00 €\n\
+                Total Amount 70,00 €\n\
+                Shipping Amount 6,90 €\n\
+                Total 76,90 €";
+    assert_eq!(extract_amount(text), Some("76.90".to_string()));
   }
 
   #[test]
