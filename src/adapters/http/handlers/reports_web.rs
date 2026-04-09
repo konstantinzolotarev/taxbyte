@@ -14,14 +14,15 @@ use crate::adapters::http::{
   templates::TemplateEngine,
 };
 use crate::application::report::{
-  DeleteReceivedInvoiceCommand, DeleteReceivedInvoiceUseCase, DeleteReportCommand,
-  DeleteReportUseCase, GetReportDetailsCommand, GetReportDetailsUseCase,
-  ImportBankStatementCommand, ImportBankStatementUseCase, ListMonthlyReportsCommand,
-  ListMonthlyReportsUseCase, ListReceivedInvoicesCommand, ListReceivedInvoicesUseCase,
-  MatchTransactionCommand, MatchTransactionUseCase, UnmatchTransactionCommand,
-  UnmatchTransactionUseCase, UploadReceiptCommand, UploadReceiptUseCase,
+  CreateEmptyReportCommand, CreateEmptyReportUseCase, DeleteReceivedInvoiceCommand,
+  DeleteReceivedInvoiceUseCase, DeleteReportCommand, DeleteReportUseCase, GetReportDetailsCommand,
+  GetReportDetailsUseCase, ImportBankStatementCommand, ImportBankStatementUseCase,
+  ListMonthlyReportsCommand, ListMonthlyReportsUseCase, ListReceivedInvoicesCommand,
+  ListReceivedInvoicesUseCase, MatchTransactionCommand, MatchTransactionUseCase,
+  UnmatchTransactionCommand, UnmatchTransactionUseCase, UploadReceiptCommand, UploadReceiptUseCase,
   UploadReceivedInvoiceCommand, UploadReceivedInvoiceUseCase,
 };
+use crate::domain::report::ports::InvoiceDataExtractor;
 
 // GET /reports - List monthly reports
 pub async fn reports_page(
@@ -43,10 +44,23 @@ pub async fn reports_page(
     .await
     .map_err(ApiError::from)?;
 
+  let active_company = companies_response
+    .companies
+    .iter()
+    .find(|c| c.company_id == company_id)
+    .map(|c| {
+      serde_json::json!({
+        "company_id": c.company_id,
+        "name": c.name,
+        "role": c.role,
+      })
+    });
+
   let mut context = tera::Context::new();
   context.insert("reports", &response.reports);
   context.insert("user", &user);
   context.insert("companies", &companies_response.companies);
+  context.insert("active_company", &active_company);
   context.insert("company_id", &company_id.to_string());
   context.insert("current_page", "reports");
 
@@ -71,9 +85,22 @@ pub async fn create_report_page(
     .execute(crate::application::company::GetUserCompaniesCommand { user_id: user.id })
     .await?;
 
+  let active_company = companies_response
+    .companies
+    .iter()
+    .find(|c| c.company_id == company_id)
+    .map(|c| {
+      serde_json::json!({
+        "company_id": c.company_id,
+        "name": c.name,
+        "role": c.role,
+      })
+    });
+
   let mut context = tera::Context::new();
   context.insert("user", &user);
   context.insert("companies", &companies_response.companies);
+  context.insert("active_company", &active_company);
   context.insert("company_id", &company_id.to_string());
   context.insert("current_page", "reports");
 
@@ -82,6 +109,41 @@ pub async fn create_report_page(
     .map_err(|e| ApiError::Internal(format!("Template error: {:?}", e)))?;
 
   Ok(HttpResponse::Ok().content_type("text/html").body(html))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateEmptyReportForm {
+  pub month: u32,
+  pub year: i32,
+}
+
+// POST /reports/create-empty - Create empty report shell
+pub async fn create_empty_report(
+  req: HttpRequest,
+  form: web::Form<CreateEmptyReportForm>,
+  create_use_case: web::Data<Arc<CreateEmptyReportUseCase>>,
+) -> Result<HttpResponse, ApiError> {
+  let _user = get_user(&req)?;
+  let company_context = get_company_context(&req)?;
+  let company_id = company_context.company_id;
+
+  let result = create_use_case
+    .execute(CreateEmptyReportCommand {
+      company_id,
+      month: form.month,
+      year: form.year,
+    })
+    .await
+    .map_err(ApiError::from)?;
+
+  Ok(
+    HttpResponse::Ok()
+      .insert_header((
+        "HX-Redirect",
+        format!("/c/{}/reports/{}", company_id, result.report_id),
+      ))
+      .finish(),
+  )
 }
 
 // POST /reports/import - Import bank statement CSV
@@ -197,6 +259,18 @@ pub async fn report_details_page(
     })
     .await?;
 
+  let active_company = companies_response
+    .companies
+    .iter()
+    .find(|c| c.company_id == company_id)
+    .map(|c| {
+      serde_json::json!({
+        "company_id": c.company_id,
+        "name": c.name,
+        "role": c.role,
+      })
+    });
+
   let mut context = tera::Context::new();
   context.insert("report", &report);
   context.insert("transactions", &report.transactions);
@@ -204,6 +278,7 @@ pub async fn report_details_page(
   context.insert("invoices", &invoices.invoices);
   context.insert("user", &user);
   context.insert("companies", &companies_response.companies);
+  context.insert("active_company", &active_company);
   context.insert("company_id", &company_id.to_string());
   context.insert("current_page", "reports");
 
@@ -367,12 +442,31 @@ pub async fn received_invoices_page(
     .await
     .map_err(ApiError::from)?;
 
+  let active_company = companies_response
+    .companies
+    .iter()
+    .find(|c| c.company_id == company_id)
+    .map(|c| {
+      serde_json::json!({
+        "company_id": c.company_id,
+        "name": c.name,
+        "role": c.role,
+      })
+    });
+
   let mut context = tera::Context::new();
   context.insert("received_invoices", &response.invoices);
   context.insert("user", &user);
   context.insert("companies", &companies_response.companies);
+  context.insert("active_company", &active_company);
   context.insert("company_id", &company_id.to_string());
   context.insert("current_page", "reports");
+  // Default empty values for the included form fields partial
+  context.insert("vendor_name", "");
+  context.insert("amount", "");
+  context.insert("currency", "");
+  context.insert("invoice_number", "");
+  context.insert("invoice_date", "");
 
   let html = templates
     .render("pages/received_invoices.html.tera", &context)
@@ -557,6 +651,60 @@ pub async fn upload_receipt(
       ))
       .finish(),
   )
+}
+
+// POST /reports/received-invoices/extract - Extract data from PDF
+pub async fn extract_invoice_data(
+  req: HttpRequest,
+  mut payload: Multipart,
+  templates: web::Data<TemplateEngine>,
+  extractor: web::Data<Arc<dyn InvoiceDataExtractor>>,
+) -> Result<HttpResponse, ApiError> {
+  let _user = get_user(&req)?;
+
+  let mut pdf_bytes: Option<Vec<u8>> = None;
+
+  while let Some(item) = payload.next().await {
+    let mut field = item.map_err(|e| ApiError::Validation(format!("Upload error: {}", e)))?;
+    let field_name = field.name().map(|s| s.to_string()).unwrap_or_default();
+
+    if field_name == "pdf_file" {
+      let mut bytes = Vec::new();
+      while let Some(chunk) = field.next().await {
+        let data = chunk.map_err(|e| ApiError::Validation(format!("Upload error: {}", e)))?;
+        bytes.extend_from_slice(&data);
+      }
+      if !bytes.is_empty() {
+        pdf_bytes = Some(bytes);
+      }
+    }
+  }
+
+  let pdf_bytes =
+    pdf_bytes.ok_or_else(|| ApiError::Validation("PDF file is required".to_string()))?;
+
+  // Run extraction on blocking thread (CPU-bound)
+  let extractor = extractor.into_inner();
+  let extracted = tokio::task::spawn_blocking(move || extractor.extract(&pdf_bytes))
+    .await
+    .map_err(|e| ApiError::Internal(format!("Extraction task failed: {}", e)))?
+    .unwrap_or_default();
+
+  let mut context = tera::Context::new();
+  context.insert("vendor_name", &extracted.vendor_name.unwrap_or_default());
+  context.insert("amount", &extracted.amount.unwrap_or_default());
+  context.insert("currency", &extracted.currency.unwrap_or_default());
+  context.insert(
+    "invoice_number",
+    &extracted.invoice_number.unwrap_or_default(),
+  );
+  context.insert("invoice_date", &extracted.invoice_date.unwrap_or_default());
+
+  let html = templates
+    .render("partials/received_invoice_form_fields.html.tera", &context)
+    .map_err(|e| ApiError::Internal(format!("Template error: {:?}", e)))?;
+
+  Ok(HttpResponse::Ok().content_type("text/html").body(html))
 }
 
 // DELETE /reports/received-invoices/{id} - Delete received invoice

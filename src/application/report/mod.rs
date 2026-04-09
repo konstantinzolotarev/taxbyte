@@ -1,3 +1,4 @@
+mod create_empty_report;
 mod delete_received_invoice;
 mod delete_report;
 mod generate_report;
@@ -10,6 +11,9 @@ mod unmatch_transaction;
 mod upload_receipt;
 mod upload_received_invoice;
 
+pub use create_empty_report::{
+  CreateEmptyReportCommand, CreateEmptyReportResponse, CreateEmptyReportUseCase,
+};
 pub use delete_received_invoice::{DeleteReceivedInvoiceCommand, DeleteReceivedInvoiceUseCase};
 pub use delete_report::{DeleteReportCommand, DeleteReportUseCase};
 pub use generate_report::{GenerateReportCommand, GenerateReportUseCase};

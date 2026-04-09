@@ -467,6 +467,12 @@ async fn main() -> std::io::Result<()> {
   let csv_parser: Arc<dyn taxbyte::domain::report::BankStatementParser> =
     Arc::new(taxbyte::infrastructure::csv::SwedbankCsvParser::new());
 
+  let invoice_data_extractor: Arc<dyn taxbyte::domain::report::InvoiceDataExtractor> =
+    Arc::new(taxbyte::infrastructure::pdf::PdfInvoiceExtractor::new());
+
+  let create_empty_report_use_case = Arc::new(
+    taxbyte::application::report::CreateEmptyReportUseCase::new(report_service.clone()),
+  );
   let import_bank_statement_use_case = Arc::new(
     taxbyte::application::report::ImportBankStatementUseCase::new(
       report_service.clone(),
@@ -610,6 +616,7 @@ async fn main() -> std::io::Result<()> {
             disconnect_google_drive_use_case: disconnect_google_drive_use_case.clone(),
             test_drive_connection_use_case: test_drive_connection_use_case.clone(),
             // Report use cases
+            create_empty_report_use_case: create_empty_report_use_case.clone(),
             import_bank_statement_use_case: import_bank_statement_use_case.clone(),
             list_monthly_reports_use_case: list_monthly_reports_use_case.clone(),
             get_report_details_use_case: get_report_details_use_case.clone(),
@@ -621,6 +628,7 @@ async fn main() -> std::io::Result<()> {
             delete_report_use_case: delete_report_use_case.clone(),
             delete_received_invoice_use_case: delete_received_invoice_use_case.clone(),
             upload_receipt_use_case: upload_receipt_use_case.clone(),
+            invoice_data_extractor: invoice_data_extractor.clone(),
           },
         )
       })

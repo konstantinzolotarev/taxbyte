@@ -18,7 +18,7 @@ pub struct ReportSummary {
   pub month: u32,
   pub year: i32,
   pub status: String,
-  pub bank_account_iban: String,
+  pub bank_account_iban: Option<String>,
   pub total_incoming: Decimal,
   pub total_outgoing: Decimal,
   pub transaction_count: i32,

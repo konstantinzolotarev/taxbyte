@@ -13,7 +13,7 @@ pub struct MonthlyReport {
   pub month: u32,
   pub year: i32,
   pub status: ReportStatus,
-  pub bank_account_iban: String,
+  pub bank_account_iban: Option<String>,
   pub total_incoming: Decimal,
   pub total_outgoing: Decimal,
   pub transaction_count: i32,
@@ -24,7 +24,7 @@ pub struct MonthlyReport {
 }
 
 impl MonthlyReport {
-  pub fn new(company_id: Uuid, month: u32, year: i32, bank_account_iban: String) -> Self {
+  pub fn new(company_id: Uuid, month: u32, year: i32, bank_account_iban: Option<String>) -> Self {
     let now = Utc::now();
     Self {
       id: Uuid::new_v4(),
@@ -160,13 +160,13 @@ mod tests {
   #[test]
   fn test_monthly_report_new_defaults() {
     let company_id = Uuid::new_v4();
-    let report = MonthlyReport::new(company_id, 3, 2026, "EE123456789".to_string());
+    let report = MonthlyReport::new(company_id, 3, 2026, Some("EE123456789".to_string()));
 
     assert_eq!(report.company_id, company_id);
     assert_eq!(report.month, 3);
     assert_eq!(report.year, 2026);
     assert_eq!(report.status, ReportStatus::Draft);
-    assert_eq!(report.bank_account_iban, "EE123456789");
+    assert_eq!(report.bank_account_iban, Some("EE123456789".to_string()));
     assert_eq!(report.total_incoming, Decimal::ZERO);
     assert_eq!(report.total_outgoing, Decimal::ZERO);
     assert_eq!(report.transaction_count, 0);

@@ -13,7 +13,7 @@ struct MonthlyReportRow {
   month: i32,
   year: i32,
   status: String,
-  bank_account_iban: String,
+  bank_account_iban: Option<String>,
   total_incoming: Decimal,
   total_outgoing: Decimal,
   transaction_count: i32,
@@ -70,7 +70,7 @@ impl MonthlyReportRepository for PostgresMonthlyReportRepository {
         .bind(report.month as i32)
         .bind(report.year)
         .bind(report.status.as_str())
-        .bind(&report.bank_account_iban)
+        .bind(report.bank_account_iban.as_deref())
         .bind(report.total_incoming)
         .bind(report.total_outgoing)
         .bind(report.transaction_count)
@@ -137,13 +137,14 @@ impl MonthlyReportRepository for PostgresMonthlyReportRepository {
     let row = sqlx::query_as::<_, MonthlyReportRow>(
             r#"
             UPDATE monthly_reports
-            SET status = $2, total_incoming = $3, total_outgoing = $4, transaction_count = $5, matched_count = $6, drive_folder_id = $7, updated_at = $8
+            SET status = $2, bank_account_iban = $3, total_incoming = $4, total_outgoing = $5, transaction_count = $6, matched_count = $7, drive_folder_id = $8, updated_at = $9
             WHERE id = $1
             RETURNING id, company_id, month, year, status, bank_account_iban, total_incoming, total_outgoing, transaction_count, matched_count, drive_folder_id, created_at, updated_at
             "#,
         )
         .bind(report.id)
         .bind(report.status.as_str())
+        .bind(report.bank_account_iban.as_deref())
         .bind(report.total_incoming)
         .bind(report.total_outgoing)
         .bind(report.transaction_count)

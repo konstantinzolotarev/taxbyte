@@ -1,59 +1,117 @@
 {% extends "layouts/base.html.tera" %}
 
-{% block title %}Import Bank Statement - TaxByte{% endblock %}
+{% block title %}Create Report - TaxByte{% endblock %}
 
 {% block content %}
 <div class="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
   <div class="mb-8">
     <a href="/c/{{ company_id }}/reports" class="text-primary-600 dark:text-primary-400 hover:underline text-sm">&larr; Back to Reports</a>
-    <h1 class="text-3xl font-bold text-gray-900 dark:text-white mt-4">Import Bank Statement</h1>
-    <p class="mt-2 text-gray-600 dark:text-gray-400">Upload a Swedbank CSV file to import transactions</p>
+    <h1 class="text-3xl font-bold text-gray-900 dark:text-white mt-4">Create Report</h1>
+    <p class="mt-2 text-gray-600 dark:text-gray-400">Start a new monthly report or import a bank statement</p>
   </div>
 
-  <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
-    <form hx-post="/c/{{ company_id }}/reports/import" hx-encoding="multipart/form-data" hx-target="body">
-      <div class="space-y-6">
-        <!-- Month / Year -->
-        <div class="grid grid-cols-2 gap-4">
-          <div>
-            <label for="month" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Month</label>
-            <select id="month" name="month" required
-              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent">
-              <option value="1">January</option>
-              <option value="2">February</option>
-              <option value="3">March</option>
-              <option value="4">April</option>
-              <option value="5">May</option>
-              <option value="6">June</option>
-              <option value="7">July</option>
-              <option value="8">August</option>
-              <option value="9">September</option>
-              <option value="10">October</option>
-              <option value="11">November</option>
-              <option value="12">December</option>
-            </select>
-          </div>
-          <div>
-            <label for="year" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Year</label>
-            <input type="number" id="year" name="year" value="2026" min="2000" max="2100" required
-              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent">
-          </div>
-        </div>
+  <div x-data="{ tab: 'empty' }" class="space-y-6">
+    <!-- Tab Buttons -->
+    <div class="flex border-b border-gray-200 dark:border-gray-700">
+      <button @click="tab = 'empty'"
+        :class="tab === 'empty' ? 'border-primary-500 text-primary-600 dark:text-primary-400' : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'"
+        class="px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors">
+        Empty Report
+      </button>
+      <button @click="tab = 'csv'"
+        :class="tab === 'csv' ? 'border-primary-500 text-primary-600 dark:text-primary-400' : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'"
+        class="px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors">
+        Import Bank Statement
+      </button>
+    </div>
 
-        <!-- CSV File -->
-        <div>
-          <label for="csv_file" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Bank Statement CSV</label>
-          <input type="file" id="csv_file" name="csv_file" accept=".csv" required
-            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white file:mr-4 file:py-1 file:px-4 file:rounded file:border-0 file:text-sm file:font-medium file:bg-primary-50 file:text-primary-700 dark:file:bg-primary-900/30 dark:file:text-primary-300 hover:file:bg-primary-100">
-          <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Swedbank Estonia CSV format (semicolon-separated)</p>
-        </div>
+    <!-- Empty Report Form -->
+    <div x-show="tab === 'empty'" class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
+      <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">Create an empty report for a month. You can attach received invoices and import the bank statement later.</p>
+      <form hx-post="/c/{{ company_id }}/reports/create-empty" hx-target="body">
+        <div class="space-y-6">
+          <!-- Month / Year -->
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label for="empty_month" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Month</label>
+              <select id="empty_month" name="month" required
+                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent">
+                <option value="1">January</option>
+                <option value="2">February</option>
+                <option value="3">March</option>
+                <option value="4">April</option>
+                <option value="5">May</option>
+                <option value="6">June</option>
+                <option value="7">July</option>
+                <option value="8">August</option>
+                <option value="9">September</option>
+                <option value="10">October</option>
+                <option value="11">November</option>
+                <option value="12">December</option>
+              </select>
+            </div>
+            <div>
+              <label for="empty_year" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Year</label>
+              <input type="number" id="empty_year" name="year" value="2026" min="2000" max="2100" required
+                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent">
+            </div>
+          </div>
 
-        <button type="submit"
-          class="w-full px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white font-medium rounded-lg transition-colors">
-          Import Statement
-        </button>
-      </div>
-    </form>
+          <button type="submit"
+            class="w-full px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white font-medium rounded-lg transition-colors">
+            Create Empty Report
+          </button>
+        </div>
+      </form>
+    </div>
+
+    <!-- CSV Import Form -->
+    <div x-show="tab === 'csv'" x-cloak class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
+      <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">Upload a Swedbank CSV file to import transactions. If an empty report already exists for the selected month, it will be populated.</p>
+      <form hx-post="/c/{{ company_id }}/reports/import" hx-encoding="multipart/form-data" hx-target="body">
+        <div class="space-y-6">
+          <!-- Month / Year -->
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label for="month" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Month</label>
+              <select id="month" name="month" required
+                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent">
+                <option value="1">January</option>
+                <option value="2">February</option>
+                <option value="3">March</option>
+                <option value="4">April</option>
+                <option value="5">May</option>
+                <option value="6">June</option>
+                <option value="7">July</option>
+                <option value="8">August</option>
+                <option value="9">September</option>
+                <option value="10">October</option>
+                <option value="11">November</option>
+                <option value="12">December</option>
+              </select>
+            </div>
+            <div>
+              <label for="year" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Year</label>
+              <input type="number" id="year" name="year" value="2026" min="2000" max="2100" required
+                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent">
+            </div>
+          </div>
+
+          <!-- CSV File -->
+          <div>
+            <label for="csv_file" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Bank Statement CSV</label>
+            <input type="file" id="csv_file" name="csv_file" accept=".csv" required
+              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white file:mr-4 file:py-1 file:px-4 file:rounded file:border-0 file:text-sm file:font-medium file:bg-primary-50 file:text-primary-700 dark:file:bg-primary-900/30 dark:file:text-primary-300 hover:file:bg-primary-100">
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Swedbank Estonia CSV format (semicolon-separated)</p>
+          </div>
+
+          <button type="submit"
+            class="w-full px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white font-medium rounded-lg transition-colors">
+            Import Statement
+          </button>
+        </div>
+      </form>
+    </div>
   </div>
 </div>
 {% endblock %}

@@ -19,16 +19,17 @@ use crate::application::invoice::{
   ReuploadInvoiceUseCase, UpdateCustomerUseCase,
 };
 use crate::application::report::{
-  DeleteReceivedInvoiceUseCase, DeleteReportUseCase, GenerateReportUseCase,
-  GetReportDetailsUseCase, ImportBankStatementUseCase, ListMonthlyReportsUseCase,
-  ListReceivedInvoicesUseCase, MatchTransactionUseCase, UnmatchTransactionUseCase,
-  UploadReceiptUseCase, UploadReceivedInvoiceUseCase,
+  CreateEmptyReportUseCase, DeleteReceivedInvoiceUseCase, DeleteReportUseCase,
+  GenerateReportUseCase, GetReportDetailsUseCase, ImportBankStatementUseCase,
+  ListMonthlyReportsUseCase, ListReceivedInvoicesUseCase, MatchTransactionUseCase,
+  UnmatchTransactionUseCase, UploadReceiptUseCase, UploadReceivedInvoiceUseCase,
 };
 use crate::domain::auth::ports::UserRepository;
 use crate::domain::auth::services::AuthService;
 use crate::domain::company::ports::{
   ActiveBankAccountRepository, ActiveCompanyRepository, CompanyMemberRepository,
 };
+use crate::domain::report::ports::InvoiceDataExtractor;
 
 use super::errors::ApiError;
 use super::handlers::auth::{
@@ -99,6 +100,7 @@ pub struct WebRouteDependencies {
   pub disconnect_google_drive_use_case: Arc<DisconnectGoogleDriveUseCase>,
   pub test_drive_connection_use_case: Arc<TestDriveConnectionUseCase>,
   // Report use cases
+  pub create_empty_report_use_case: Arc<CreateEmptyReportUseCase>,
   pub import_bank_statement_use_case: Arc<ImportBankStatementUseCase>,
   pub list_monthly_reports_use_case: Arc<ListMonthlyReportsUseCase>,
   pub get_report_details_use_case: Arc<GetReportDetailsUseCase>,
@@ -110,6 +112,7 @@ pub struct WebRouteDependencies {
   pub delete_report_use_case: Arc<DeleteReportUseCase>,
   pub delete_received_invoice_use_case: Arc<DeleteReceivedInvoiceUseCase>,
   pub upload_receipt_use_case: Arc<UploadReceiptUseCase>,
+  pub invoice_data_extractor: Arc<dyn InvoiceDataExtractor>,
 }
 
 /// Configure authentication routes
@@ -627,6 +630,7 @@ pub fn configure_company_scoped_routes(cfg: &mut web::ServiceConfig, deps: &WebR
       // Reports
       .app_data(web::Data::new(deps.get_companies_use_case.clone()))
       .app_data(web::Data::new(deps.list_invoices_use_case.clone()))
+      .app_data(web::Data::new(deps.create_empty_report_use_case.clone()))
       .app_data(web::Data::new(deps.import_bank_statement_use_case.clone()))
       .app_data(web::Data::new(deps.list_monthly_reports_use_case.clone()))
       .app_data(web::Data::new(deps.get_report_details_use_case.clone()))
@@ -642,10 +646,15 @@ pub fn configure_company_scoped_routes(cfg: &mut web::ServiceConfig, deps: &WebR
         deps.delete_received_invoice_use_case.clone(),
       ))
       .app_data(web::Data::new(deps.upload_receipt_use_case.clone()))
+      .app_data(web::Data::new(deps.invoice_data_extractor.clone()))
       .route("/reports", web::get().to(reports_web::reports_page))
       .route(
         "/reports/create",
         web::get().to(reports_web::create_report_page),
+      )
+      .route(
+        "/reports/create-empty",
+        web::post().to(reports_web::create_empty_report),
       )
       .route(
         "/reports/import",
@@ -654,6 +663,10 @@ pub fn configure_company_scoped_routes(cfg: &mut web::ServiceConfig, deps: &WebR
       .route(
         "/reports/received-invoices",
         web::get().to(reports_web::received_invoices_page),
+      )
+      .route(
+        "/reports/received-invoices/extract",
+        web::post().to(reports_web::extract_invoice_data),
       )
       .route(
         "/reports/received-invoices",

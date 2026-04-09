@@ -30,12 +30,11 @@ impl ReportService {
     }
   }
 
-  /// Import a bank statement: create report + transactions
-  pub async fn import_bank_statement(
+  /// Create an empty report shell (no bank statement yet)
+  pub async fn create_empty_report(
     &self,
     company_id: Uuid,
     period: ReportMonth,
-    transactions: Vec<ParsedTransaction>,
   ) -> Result<MonthlyReport, ReportError> {
     // Check for duplicate
     if self
@@ -47,6 +46,17 @@ impl ReportService {
       return Err(ReportError::DuplicateReport);
     }
 
+    let report = MonthlyReport::new(company_id, period.month, period.year, None);
+    self.report_repo.create(report).await
+  }
+
+  /// Import a bank statement: create report + transactions (or populate existing empty report)
+  pub async fn import_bank_statement(
+    &self,
+    company_id: Uuid,
+    period: ReportMonth,
+    transactions: Vec<ParsedTransaction>,
+  ) -> Result<MonthlyReport, ReportError> {
     // Extract IBAN from first transaction
     let iban = transactions
       .first()
@@ -63,12 +73,33 @@ impl ReportService {
       }
     }
 
-    let mut report = MonthlyReport::new(company_id, period.month, period.year, iban);
-    report.total_incoming = total_incoming;
-    report.total_outgoing = total_outgoing;
-    report.transaction_count = transactions.len() as i32;
+    let tx_count = transactions.len() as i32;
 
-    let report = self.report_repo.create(report).await?;
+    // Check for existing report
+    let report = if let Some(existing) = self
+      .report_repo
+      .find_by_company_and_period(company_id, period.month, period.year)
+      .await?
+    {
+      // Only allow populating empty draft reports
+      if existing.status != ReportStatus::Draft || existing.transaction_count != 0 {
+        return Err(ReportError::DuplicateReport);
+      }
+
+      let mut report = existing;
+      report.bank_account_iban = Some(iban);
+      report.total_incoming = total_incoming;
+      report.total_outgoing = total_outgoing;
+      report.transaction_count = tx_count;
+      report.updated_at = Utc::now();
+      self.report_repo.update(report).await?
+    } else {
+      let mut report = MonthlyReport::new(company_id, period.month, period.year, Some(iban));
+      report.total_incoming = total_incoming;
+      report.total_outgoing = total_outgoing;
+      report.transaction_count = tx_count;
+      self.report_repo.create(report).await?
+    };
 
     // Create bank transactions
     let bank_transactions: Vec<BankTransaction> = transactions
@@ -90,7 +121,24 @@ impl ReportService {
       })
       .collect();
 
-    self.transaction_repo.create_many(bank_transactions).await?;
+    let bank_transactions = self.transaction_repo.create_many(bank_transactions).await?;
+
+    // Auto-match received invoices to debit transactions
+    let auto_matched = self
+      .auto_match_received_invoices(report.id, company_id, &bank_transactions)
+      .await?;
+
+    // Update matched count if any auto-matches were made
+    if auto_matched > 0 {
+      let mut report = self
+        .report_repo
+        .find_by_id(report.id)
+        .await?
+        .ok_or(ReportError::NotFound)?;
+      report.matched_count = auto_matched;
+      report.updated_at = Utc::now();
+      return self.report_repo.update(report).await;
+    }
 
     Ok(report)
   }
@@ -276,6 +324,50 @@ impl ReportService {
       .find_by_id(id)
       .await?
       .ok_or(ReportError::ReceivedInvoiceNotFound)
+  }
+
+  /// Auto-match received invoices to debit transactions by exact amount.
+  /// Returns the number of auto-matched transactions.
+  async fn auto_match_received_invoices(
+    &self,
+    _report_id: Uuid,
+    company_id: Uuid,
+    transactions: &[BankTransaction],
+  ) -> Result<i32, ReportError> {
+    let unmatched_invoices = self
+      .received_invoice_repo
+      .find_unmatched_by_company(company_id)
+      .await?;
+
+    if unmatched_invoices.is_empty() {
+      return Ok(0);
+    }
+
+    let mut matched_count = 0i32;
+
+    for tx in transactions {
+      // Only auto-match debit (outgoing) transactions
+      if tx.direction != TransactionDirection::Debit || tx.is_matched() {
+        continue;
+      }
+
+      // Find received invoices with exact same amount
+      let candidates: Vec<&ReceivedInvoice> = unmatched_invoices
+        .iter()
+        .filter(|inv| inv.amount == tx.amount && inv.currency == tx.currency)
+        .collect();
+
+      // Only auto-match if exactly one candidate (unambiguous)
+      if candidates.len() == 1 {
+        self
+          .transaction_repo
+          .update_match(tx.id, None, Some(candidates[0].id))
+          .await?;
+        matched_count += 1;
+      }
+    }
+
+    Ok(matched_count)
   }
 
   /// Helper: recalculate matched count for a report

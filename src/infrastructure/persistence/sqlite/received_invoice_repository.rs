@@ -148,6 +148,26 @@ impl ReceivedInvoiceRepository for SqliteReceivedInvoiceRepository {
     rows.into_iter().map(|r| r.try_into()).collect()
   }
 
+  async fn find_unmatched_by_company(
+    &self,
+    company_id: Uuid,
+  ) -> Result<Vec<ReceivedInvoice>, ReportError> {
+    let rows = sqlx::query_as::<_, ReceivedInvoiceRow>(
+            r#"
+            SELECT id, company_id, vendor_name, amount, currency, invoice_date, invoice_number, pdf_path, pdf_drive_file_id, notes, created_at, updated_at
+            FROM received_invoices
+            WHERE company_id = ?1
+              AND id NOT IN (SELECT matched_received_invoice_id FROM bank_transactions WHERE matched_received_invoice_id IS NOT NULL)
+            ORDER BY created_at DESC
+            "#,
+        )
+        .bind(company_id.to_string())
+        .fetch_all(&self.pool)
+        .await?;
+
+    rows.into_iter().map(|r| r.try_into()).collect()
+  }
+
   async fn delete(&self, id: Uuid) -> Result<(), ReportError> {
     sqlx::query("DELETE FROM received_invoices WHERE id = ?1")
       .bind(id.to_string())

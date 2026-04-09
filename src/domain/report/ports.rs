@@ -57,12 +57,31 @@ pub trait ReceivedInvoiceRepository: Send + Sync {
     start_date: NaiveDate,
     end_date: NaiveDate,
   ) -> Result<Vec<ReceivedInvoice>, ReportError>;
+  async fn find_unmatched_by_company(
+    &self,
+    company_id: Uuid,
+  ) -> Result<Vec<ReceivedInvoice>, ReportError>;
   async fn delete(&self, id: Uuid) -> Result<(), ReportError>;
 }
 
 /// Port for parsing bank statement CSV files
 pub trait BankStatementParser: Send + Sync {
   fn parse(&self, csv_content: &[u8]) -> Result<Vec<ParsedTransaction>, ReportError>;
+}
+
+/// Extracted invoice data from a PDF file — all fields optional (best-effort)
+#[derive(Debug, Default, Clone)]
+pub struct ExtractedInvoiceData {
+  pub vendor_name: Option<String>,
+  pub amount: Option<String>,
+  pub currency: Option<String>,
+  pub invoice_number: Option<String>,
+  pub invoice_date: Option<String>,
+}
+
+/// Port for extracting structured data from invoice PDFs
+pub trait InvoiceDataExtractor: Send + Sync {
+  fn extract(&self, pdf_bytes: &[u8]) -> Result<ExtractedInvoiceData, ReportError>;
 }
 
 /// Port for cloud storage operations specific to reports

@@ -77,6 +77,10 @@ encoding_rs = "0.8"
 # File upload
 actix-multipart = "0.7"
 
+# PDF text extraction
+pdf-extract = "0.7"
+regex = "1"
+
 # Utilities
 lazy_static = "1.5.0"
 
