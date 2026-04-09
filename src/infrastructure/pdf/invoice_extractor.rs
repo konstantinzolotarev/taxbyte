@@ -37,42 +37,41 @@ impl InvoiceDataExtractor for PdfInvoiceExtractor {
 
 /// Extract the total amount from invoice text.
 /// Looks for amounts near keywords like "total", "summa", "kokku", "tasuda", "amount due".
+/// Prioritizes specific grand-total keywords first, then falls back to generic ones
+/// (using the last occurrence to prefer the final total over subtotals).
 fn extract_amount(text: &str) -> Option<String> {
-  let keywords = [
+  // Specific grand-total keywords — checked first, first occurrence wins
+  let specific_keywords = [
+    "arve summa kokku",
+    "grand total",
+    "invoice total",
     "total to pay",
+    "total amount",
     "amount due",
     "total due",
-    "tasuda",
-    "kokku",
-    "summa kokku",
-    "grand total",
-    "total amount",
-    "invoice total",
     "amount payable",
-    "total",
-    "summa",
-    "итого",
+    "summa kokku",
+    "kokku tasuda",
     "к оплате",
   ];
 
+  // Generic keywords — checked second, LAST occurrence wins (grand total is usually at bottom)
+  let generic_keywords = ["tasuda", "kokku", "total", "summa", "итого"];
+
   let amount_re = Regex::new(r"(\d[\d\s]*[.,]\d{2})\b").unwrap();
-
-  // Search for amounts near keywords (within 100 chars after keyword)
   let text_lower = text.to_lowercase();
-  for keyword in &keywords {
-    if let Some(pos) = text_lower.find(keyword) {
-      let search_start = pos + keyword.len();
-      let search_end = (search_start + 100).min(text.len());
-      let search_slice = &text[search_start..search_end];
 
-      if let Some(m) = amount_re.find(search_slice) {
-        let amount = normalize_amount(m.as_str());
-        if let Ok(val) = amount.parse::<f64>() {
-          if val > 0.0 {
-            return Some(amount);
-          }
-        }
-      }
+  // Pass 1: specific keywords — first match wins
+  for keyword in &specific_keywords {
+    if let Some(amount) = find_amount_near_keyword(&text_lower, text, keyword, &amount_re) {
+      return Some(amount);
+    }
+  }
+
+  // Pass 2: generic keywords — use LAST occurrence (bottom of document = grand total)
+  for keyword in &generic_keywords {
+    if let Some(amount) = find_amount_near_last_keyword(&text_lower, text, keyword, &amount_re) {
+      return Some(amount);
     }
   }
 
@@ -92,6 +91,42 @@ fn extract_amount(text: &str) -> Option<String> {
   }
 
   largest.map(|(_, s)| s)
+}
+
+/// Find an amount near the first occurrence of a keyword.
+fn find_amount_near_keyword(
+  text_lower: &str,
+  text: &str,
+  keyword: &str,
+  amount_re: &Regex,
+) -> Option<String> {
+  let pos = text_lower.find(keyword)?;
+  extract_amount_after_pos(text, pos + keyword.len(), amount_re)
+}
+
+/// Find an amount near the LAST occurrence of a keyword.
+fn find_amount_near_last_keyword(
+  text_lower: &str,
+  text: &str,
+  keyword: &str,
+  amount_re: &Regex,
+) -> Option<String> {
+  let pos = text_lower.rfind(keyword)?;
+  extract_amount_after_pos(text, pos + keyword.len(), amount_re)
+}
+
+/// Extract the first valid amount within 100 chars after a position.
+fn extract_amount_after_pos(text: &str, start: usize, amount_re: &Regex) -> Option<String> {
+  let search_end = (start + 100).min(text.len());
+  let search_slice = &text[start..search_end];
+  let m = amount_re.find(search_slice)?;
+  let amount = normalize_amount(m.as_str());
+  if let Ok(val) = amount.parse::<f64>() {
+    if val > 0.0 {
+      return Some(amount);
+    }
+  }
+  None
 }
 
 /// Normalize an amount string: remove spaces, replace comma with dot
@@ -437,6 +472,30 @@ mod tests {
     // No keyword match — should pick the largest amount
     let text = "Line 1: 10,00\nLine 2: 50,00\nLine 3: 25,00";
     assert_eq!(extract_amount(text), Some("50.00".to_string()));
+  }
+
+  #[test]
+  fn test_extract_amount_prefers_grand_total_over_subtotal() {
+    // Simulates a Swedbank leasing invoice where "Kokku" appears twice:
+    // first as subtotal (19 260.77), then "ARVE SUMMA KOKKU" as grand total (23 847.82)
+    let text = "Kokku,\nsealhulgas\n19 260.77 4 587.05\n\
+                24% maksustatav käive 19 112.69\n\
+                Käibemaks (24%) 4 587.05\n\
+                ARVE SUMMA KOKKU 23 847.82";
+    assert_eq!(extract_amount(text), Some("23847.82".to_string()));
+  }
+
+  #[test]
+  fn test_extract_amount_arve_summa_kokku() {
+    let text = "Some lines\nARVE SUMMA KOKKU 1 234,56\nFooter";
+    assert_eq!(extract_amount(text), Some("1234.56".to_string()));
+  }
+
+  #[test]
+  fn test_extract_amount_generic_kokku_uses_last_occurrence() {
+    // When only generic "kokku" appears, prefer the last one (grand total at bottom)
+    let text = "Kokku 100,00\nMore lines\nKokku 500,00";
+    assert_eq!(extract_amount(text), Some("500.00".to_string()));
   }
 
   #[test]
