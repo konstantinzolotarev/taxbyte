@@ -3,6 +3,10 @@ name = "taxbyte"
 version = "0.1.0"
 edition = "2024"
 publish = false
+description = "Tax & invoice management application"
+repository = "https://github.com/konstantinzolotarev/taxbyte"
+license = "MIT"
+authors = ["Konstantin Zolotarev <konstantin.zolotarev@gmail.com>"]
 
 [dependencies]
 # Web framework

@@ -1,0 +1,11 @@
+target/
+data/
+.git/
+.github/
+*.md
+docker-compose.yml
+Dockerfile
+.dockerignore
+.env
+.env.*
+tests/
