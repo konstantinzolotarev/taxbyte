@@ -377,42 +377,50 @@ async fn main() -> std::io::Result<()> {
       .expect("Failed to create token encryption"),
   );
 
-  let oauth_manager: Option<Arc<dyn OAuthManager>> =
+  let oauth_manager: Arc<dyn OAuthManager> =
     if std::env::var("MOCK_OAUTH").unwrap_or_default() == "true" {
       tracing::info!("Using mock OAuth manager for development");
-      Some(Arc::new(
+      Arc::new(
         MockOAuthManager::new(
           "mock-client-id".to_string(),
           "mock-client-secret".to_string(),
           "http://localhost:8080/oauth/google/callback".to_string(),
         )
         .expect("Failed to create mock OAuth manager"),
-      ))
-    } else if let Some(google_drive_config) = &config.google_drive {
-      if let (Some(client_id), Some(client_secret), Some(redirect_url)) = (
+      )
+    } else if let Some(google_drive_config) = &config.google_drive
+      && let (Some(client_id), Some(client_secret), Some(redirect_url)) = (
         &google_drive_config.oauth_client_id,
         &google_drive_config.oauth_client_secret,
         &google_drive_config.oauth_redirect_url,
-      ) {
-        Some(Arc::new(
-          GoogleOAuthManager::new(
-            client_id.clone(),
-            client_secret.clone(),
-            redirect_url.clone(),
-          )
-          .expect("Failed to create OAuth manager"),
-        ))
-      } else {
-        tracing::warn!("Google Drive OAuth credentials not configured");
-        None
-      }
+      )
+    {
+      Arc::new(
+        GoogleOAuthManager::new(
+          client_id.clone(),
+          client_secret.clone(),
+          redirect_url.clone(),
+        )
+        .expect("Failed to create OAuth manager"),
+      )
     } else {
-      tracing::warn!("Google Drive configuration not found");
-      None
+      tracing::warn!(
+        "Google Drive OAuth credentials not configured; using mock OAuth manager. \
+       Google Drive integration will not function until real credentials are provided \
+       via TAXBYTE_GOOGLE_DRIVE__OAUTH_CLIENT_ID / _SECRET / _REDIRECT_URL."
+      );
+      Arc::new(
+        MockOAuthManager::new(
+          "mock-client-id".to_string(),
+          "mock-client-secret".to_string(),
+          "http://localhost:8080/oauth/google/callback".to_string(),
+        )
+        .expect("Failed to create mock OAuth manager"),
+      )
     };
 
   let connect_google_drive_use_case = Arc::new(ConnectGoogleDriveUseCase::new(
-    oauth_manager.clone().expect("OAuth manager not configured"),
+    oauth_manager.clone(),
     company_repo.clone(),
     token_encryption.clone(),
   ));

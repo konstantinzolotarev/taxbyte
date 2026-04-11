@@ -298,6 +298,49 @@ docker exec -it taxbyte-postgres psql -U taxbyte -d taxbyte
 docker exec -it taxbyte-redis redis-cli
 ```
 
+## Running via Docker (GHCR image)
+
+Prebuilt images are published to GitHub Container Registry on every `v*` tag:
+
+```bash
+docker pull ghcr.io/konstantinzolotarev/taxbyte:latest
+
+docker run --rm -p 8080:8080 \
+  -e TAXBYTE_SECURITY__ENCRYPTION_KEY_BASE64="$(openssl rand -base64 32)" \
+  -v taxbyte-data:/app/data \
+  ghcr.io/konstantinzolotarev/taxbyte:latest
+```
+
+The image uses the SQLite backend by default and persists the database in the
+`/app/data` volume. `wkhtmltopdf` is installed in the image for PDF generation.
+
+**Google Drive OAuth (optional):** if credentials are not provided, the app
+starts with a mock OAuth manager and Google Drive integration is disabled. To
+enable it, supply:
+
+```
+TAXBYTE_GOOGLE_DRIVE__OAUTH_CLIENT_ID=...
+TAXBYTE_GOOGLE_DRIVE__OAUTH_CLIENT_SECRET=...
+TAXBYTE_GOOGLE_DRIVE__OAUTH_REDIRECT_URL=https://your-host/oauth/google/callback
+```
+
+Set `MOCK_OAUTH=true` to explicitly force the mock manager (useful for local dev).
+
+## Releasing
+
+Releases are cut from `v*` tags. See `.github/workflows/release.yml`.
+
+```bash
+# 1. Bump version in Cargo.toml
+# 2. cargo update -p taxbyte   # refresh Cargo.lock
+# 3. git commit -am "Release vX.Y.Z"
+# 4. git tag vX.Y.Z && git push && git push --tags
+```
+
+The workflow verifies the tag matches `Cargo.toml`, builds a multi-arch
+(`linux/amd64`, `linux/arm64`) Docker image, pushes to `ghcr.io`, and creates
+a GitHub release with auto-generated notes.
+
 ## Configuration
 
 Configuration is loaded in priority order (later overrides earlier):
