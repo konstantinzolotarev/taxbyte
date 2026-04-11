@@ -6,6 +6,10 @@
   <meta name="description" content="TaxByte - Tax and Invoice Management">
   <title>{% block title %}TaxByte{% endblock %}</title>
 
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="/static/images/taxbyte.png">
+  <link rel="apple-touch-icon" href="/static/images/taxbyte.png">
+
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
